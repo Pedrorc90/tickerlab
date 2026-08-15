@@ -43,9 +43,17 @@
   }
 </section>
 
-<main class="chart-area">
-  <app-price-chart [series]="series()" [indicators]="visibleIndicators()" [periods]="periods()" />
-</main>
+<div class="workspace">
+  <main class="chart-area">
+    <app-price-chart [series]="series()" [indicators]="visibleIndicators()" [periods]="periods()" />
+  </main>
+
+  <app-watchlist-panel
+    [currentSymbol]="symbol()"
+    [currentName]="series()?.name ?? null"
+    (selected)="onSymbolSelected($event)"
+  />
+</div>
 
 <footer class="legend">
   <span><i class="swatch candle"></i> Velas — precio del periodo</span>

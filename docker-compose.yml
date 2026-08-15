@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tickerlab-postgres
+    environment:
+      POSTGRES_DB: tickerlab
+      POSTGRES_USER: tickerlab
+      POSTGRES_PASSWORD: tickerlab
+    ports:
+      - "5433:5432"
+    volumes:
+      - tickerlab_pgdata:/var/lib/postgresql/data
+
+volumes:
+  tickerlab_pgdata:

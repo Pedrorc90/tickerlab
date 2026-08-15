@@ -14,6 +14,7 @@ import {
 } from './market/market.models';
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
+import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
 
 /** Something recognisable has to be on screen before the user types anything. */
 const DEFAULT_SYMBOL = 'AAPL';
@@ -21,7 +22,7 @@ const DEFAULT_SYMBOL = 'AAPL';
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TickerSearchComponent, PriceChartComponent, DecimalPipe],
+  imports: [TickerSearchComponent, PriceChartComponent, WatchlistPanelComponent, DecimalPipe],
   templateUrl: './app.html',
   styleUrl: './app.css',
   // Clicking anywhere else dismisses an open period popover; the popover itself stops

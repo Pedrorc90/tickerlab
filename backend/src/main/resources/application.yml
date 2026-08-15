@@ -4,6 +4,16 @@ server:
 spring:
   application:
     name: tickerlab
+  datasource:
+    # 5433 on purpose: keepory already owns 5432 on this machine.
+    url: ${TICKERLAB_DB_URL:jdbc:postgresql://localhost:5433/tickerlab}
+    username: ${TICKERLAB_DB_USER:tickerlab}
+    password: ${TICKERLAB_DB_PASSWORD:tickerlab}
+  jpa:
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks it matches the entities.
+      ddl-auto: validate
+    open-in-view: false
 
 tickerlab:
   yahoo:

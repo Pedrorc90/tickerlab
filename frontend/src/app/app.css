@@ -114,7 +114,15 @@ app-ticker-search {
   color: #ef5350;
 }
 
+/* Chart on the left, watchlists docked on the right. */
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr 15rem;
+  min-height: 0;
+}
+
 .chart-area {
+  min-width: 0;
   min-height: 0;
   background: #131722;
 }
