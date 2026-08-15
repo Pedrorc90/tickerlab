@@ -19,6 +19,7 @@ import {
   LineStyle,
   UTCTimestamp,
   createChart,
+  createTextWatermark,
 } from 'lightweight-charts';
 import { RSI_OVERBOUGHT, RSI_OVERSOLD, RSI_PERIOD, relativeStrengthIndex } from './indicators/rsi';
 import { CandleSeries } from './market.models';
@@ -40,6 +41,7 @@ const COLORS = {
   rsiFade: 'rgba(46, 196, 182, 0)',
   rsiOverboughtBand: 'rgba(46, 196, 182, 0.55)',
   rsiOversoldBand: 'rgba(255, 107, 107, 0.55)',
+  paneLabel: 'rgba(178, 181, 190, 0.55)',
 } as const;
 
 /** Vertical split between the three panes, as a fraction of the total height. */
@@ -183,6 +185,13 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
         title: '',
       });
     }
+
+    // Names the pane, since three stacked panes give no other clue about what the third one is.
+    createTextWatermark(this.chart.panes()[2], {
+      horzAlign: 'right',
+      vertAlign: 'top',
+      lines: [{ text: `RSI ${RSI_PERIOD}`, color: COLORS.paneLabel, fontSize: 11 }],
+    });
 
     this.resizeObserver = new ResizeObserver(() => this.layoutPanes());
     this.resizeObserver.observe(element);
