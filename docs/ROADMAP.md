@@ -14,8 +14,9 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
 - **Boot 4**: `RestClient.Builder` exige el starter `spring-boot-starter-restclient`; ya no viene con el starter web.
 - **lightweight-charts v5**: los paneles son nativos (`addSeries(def, options, paneIndex)` + `pane.setHeight`). Las alturas van en píxeles, así que se recalculan en cada resize.
+- **Etiquetas de panel**: `createTextWatermark(pane, …)` es la vía nativa en v5 (el watermark dejó de ser opción del chart). Así se rotula el panel del RSI, arriba a la derecha.
+- **Relleno y altura del RSI validados en la app** (2026-08-15): se quedan como están (relleno 0.45, panel al 27 %).
 
 ## Pendiente de decidir
 
-- **Relleno del RSI y altura del panel** (abierto 2026-08-15): pendiente de que Pedro lo mire en la app y diga si quiere el relleno más opaco o el panel más alto que el 27 % actual.
 - **F2 — universo de tickers y almacenamiento**: Yahoo no publica un listado descargable. Opciones a evaluar cuando toque: fichero estático de constituyentes del S&P 500, los `screener` de Yahoo (no documentados) o un proveedor con listado (Nasdaq Trader publica ficheros públicos).
