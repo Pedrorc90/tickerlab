@@ -17,6 +17,5 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 ## Pendiente de decidir
 
-- **El repo no está bajo git** (2026-08-15): `git init` + primer commit sin hacer.
 - **Relleno del RSI y altura del panel** (abierto 2026-08-15): pendiente de que Pedro lo mire en la app y diga si quiere el relleno más opaco o el panel más alto que el 27 % actual.
 - **F2 — universo de tickers y almacenamiento**: Yahoo no publica un listado descargable. Opciones a evaluar cuando toque: fichero estático de constituyentes del S&P 500, los `screener` de Yahoo (no documentados) o un proveedor con listado (Nasdaq Trader publica ficheros públicos).
