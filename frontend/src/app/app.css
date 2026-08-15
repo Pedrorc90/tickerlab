@@ -198,3 +198,15 @@ app-price-chart {
 .swatch.rsi {
   background: linear-gradient(180deg, #2ec4b6 50%, #ff6b6b 50%);
 }
+
+.swatch.sma50 {
+  background: #f0b90b;
+}
+
+.swatch.sma200 {
+  background: #a78bfa;
+}
+
+.swatch.macd {
+  background: linear-gradient(90deg, #4b8bff 50%, #ff9f43 50%);
+}

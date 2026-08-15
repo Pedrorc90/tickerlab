@@ -17,14 +17,18 @@ import {
   IChartApi,
   ISeriesApi,
   ITextWatermarkPluginApi,
+  LineSeries,
   LineStyle,
+  SeriesType,
   Time,
   UTCTimestamp,
   createChart,
   createTextWatermark,
 } from 'lightweight-charts';
+import { MACD_FAST, MACD_SIGNAL, MACD_SLOW, macd } from './indicators/macd';
+import { SMA_FAST, SMA_SLOW, simpleMovingAverage } from './indicators/moving-average';
 import { RSI_OVERBOUGHT, RSI_OVERSOLD, RSI_PERIOD, relativeStrengthIndex } from './indicators/rsi';
-import { CandleSeries, INDICATORS, Indicator } from './market.models';
+import { Candle, CandleSeries, INDICATORS, Indicator } from './market.models';
 
 /** Dark palette, close to what trading terminals use. */
 const COLORS = {
@@ -44,16 +48,40 @@ const COLORS = {
   rsiOverboughtBand: 'rgba(46, 196, 182, 0.55)',
   rsiOversoldBand: 'rgba(255, 107, 107, 0.55)',
   paneLabel: 'rgba(178, 181, 190, 0.55)',
+  smaFast: '#f0b90b',
+  smaSlow: '#a78bfa',
+  macdLine: '#4b8bff',
+  macdSignal: '#ff9f43',
+  macdHistUp: 'rgba(38, 166, 154, 0.55)',
+  macdHistDown: 'rgba(239, 83, 80, 0.55)',
 } as const;
 
 /**
  * Relative pane heights. They are weights, not fractions: whatever is switched off
  * drops out and the rest share the full height, so price alone fills the chart.
  */
-const PANE_WEIGHTS = { price: 0.58, VOLUME: 0.15, RSI: 0.27 } as const;
+const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
+  price: 0.58,
+  VOLUME: 0.15,
+  RSI: 0.27,
+  MACD: 0.27,
+  // Overlays never get a pane of their own; these are here only to keep the record total.
+  SMA50: 0,
+  SMA200: 0,
+};
+
+/** Candles live here, and so does anything drawn on top of them. */
+const PRICE_PANE = 0;
 
 /** RSI pivots around 50: above it buyers dominate, below it sellers do. */
 const RSI_MIDLINE = 50;
+
+/** One switched-on indicator: the series it owns, how to feed them, and its pane label. */
+interface IndicatorPlot {
+  series: ISeriesApi<SeriesType>[];
+  setData: (candles: Candle[]) => void;
+  label?: ITextWatermarkPluginApi<Time>;
+}
 
 @Component({
   selector: 'app-price-chart',
@@ -91,15 +119,16 @@ const RSI_MIDLINE = 50;
 })
 export class PriceChartComponent implements AfterViewInit, OnDestroy {
   readonly series = input<CandleSeries | null>(null);
-  readonly indicators = input<ReadonlySet<Indicator>>(new Set<Indicator>(['VOLUME', 'RSI']));
+  readonly indicators = input<ReadonlySet<Indicator>>(
+    new Set<Indicator>(INDICATORS.map(({ value }) => value)),
+  );
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
 
   private chart?: IChartApi;
   private candleSeries?: ISeriesApi<'Candlestick'>;
-  private volumeSeries?: ISeriesApi<'Histogram'>;
-  private rsiSeries?: ISeriesApi<'Baseline'>;
-  private rsiLabel?: ITextWatermarkPluginApi<Time>;
+  /** Only the indicators currently switched on. Everything else has been removed outright. */
+  private readonly plots = new Map<Indicator, IndicatorPlot>();
   private resizeObserver?: ResizeObserver;
 
   constructor() {
@@ -164,88 +193,179 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
 
   /** Adds and removes indicator series so the chart matches what the legend has switched on. */
   private syncIndicators(visible: ReadonlySet<Indicator>): void {
-    if (visible.has('VOLUME') && !this.volumeSeries) {
-      this.volumeSeries = this.addVolumeSeries();
-    } else if (!visible.has('VOLUME') && this.volumeSeries) {
-      this.chart?.removeSeries(this.volumeSeries);
-      this.volumeSeries = undefined;
+    const chart = this.chart;
+    if (!chart) {
+      return;
     }
 
-    if (visible.has('RSI') && !this.rsiSeries) {
-      this.rsiSeries = this.addRsiSeries();
-    } else if (!visible.has('RSI') && this.rsiSeries) {
-      this.rsiLabel?.detach();
-      this.rsiLabel = undefined;
-      this.chart?.removeSeries(this.rsiSeries);
-      this.rsiSeries = undefined;
+    for (const { value } of INDICATORS) {
+      const plot = this.plots.get(value);
+      if (visible.has(value) && !plot) {
+        this.plots.set(value, this.createPlot(chart, value));
+      } else if (!visible.has(value) && plot) {
+        plot.label?.detach();
+        for (const series of plot.series) {
+          chart.removeSeries(series);
+        }
+        this.plots.delete(value);
+      }
     }
 
     this.dropEmptyPanes();
     this.orderPanes();
   }
 
-  /** New indicators always land on a fresh pane at the bottom; `orderPanes` puts them in place. */
-  private addVolumeSeries(): ISeriesApi<'Histogram'> | undefined {
-    const chart = this.chart;
-    if (!chart) {
-      return undefined;
+  /**
+   * Builds one indicator. Pane indicators land on a fresh pane at the bottom and
+   * `orderPanes` moves them into place; overlays go straight onto the price pane.
+   */
+  private createPlot(chart: IChartApi, indicator: Indicator): IndicatorPlot {
+    const nextPane = chart.panes().length;
+
+    switch (indicator) {
+      case 'SMA50':
+      case 'SMA200': {
+        const period = indicator === 'SMA50' ? SMA_FAST : SMA_SLOW;
+        const series = chart.addSeries(
+          LineSeries,
+          {
+            color: indicator === 'SMA50' ? COLORS.smaFast : COLORS.smaSlow,
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          },
+          PRICE_PANE,
+        );
+        return {
+          series: [series],
+          setData: (candles) =>
+            series.setData(
+              simpleMovingAverage(candles, period).map((point) => ({
+                time: point.time as UTCTimestamp,
+                value: point.value,
+              })),
+            ),
+        };
+      }
+
+      case 'VOLUME': {
+        const series = chart.addSeries(
+          HistogramSeries,
+          { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false },
+          nextPane,
+        );
+        return {
+          series: [series],
+          setData: (candles) =>
+            series.setData(
+              candles.map((candle) => ({
+                time: candle.time as UTCTimestamp,
+                value: candle.volume,
+                color: candle.close >= candle.open ? COLORS.volumeUp : COLORS.volumeDown,
+              })),
+            ),
+        };
+      }
+
+      case 'RSI': {
+        // A filled baseline reads far better than a hairline at this pane height: the shaded
+        // area above/below 50 shows which side is in control without squinting at the curve.
+        const series = chart.addSeries(
+          BaselineSeries,
+          {
+            baseValue: { type: 'price', price: RSI_MIDLINE },
+            topLineColor: COLORS.rsiStrong,
+            topFillColor1: COLORS.rsiStrongFill,
+            topFillColor2: COLORS.rsiFade,
+            bottomLineColor: COLORS.rsiWeak,
+            bottomFillColor1: COLORS.rsiFade,
+            bottomFillColor2: COLORS.rsiWeakFill,
+            lineWidth: 2,
+            priceLineVisible: false,
+            // RSI is bounded by definition, so pin the scale instead of letting it breathe.
+            autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
+          },
+          nextPane,
+        );
+
+        const bands: ReadonlyArray<[number, string]> = [
+          [RSI_OVERBOUGHT, COLORS.rsiOverboughtBand],
+          [RSI_OVERSOLD, COLORS.rsiOversoldBand],
+        ];
+        for (const [level, color] of bands) {
+          series.createPriceLine({
+            price: level,
+            color,
+            lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: '',
+          });
+        }
+
+        return {
+          series: [series],
+          label: this.labelPane(series, `RSI ${RSI_PERIOD}`),
+          setData: (candles) =>
+            series.setData(
+              relativeStrengthIndex(candles, RSI_PERIOD).map((point) => ({
+                time: point.time as UTCTimestamp,
+                value: point.value,
+              })),
+            ),
+        };
+      }
+
+      case 'MACD': {
+        // The histogram goes in first so the two lines are drawn over it, not under.
+        const histogram = chart.addSeries(
+          HistogramSeries,
+          { priceLineVisible: false, lastValueVisible: false },
+          nextPane,
+        );
+        const line = chart.addSeries(
+          LineSeries,
+          { color: COLORS.macdLine, lineWidth: 2, priceLineVisible: false },
+          nextPane,
+        );
+        const signal = chart.addSeries(
+          LineSeries,
+          { color: COLORS.macdSignal, lineWidth: 1, priceLineVisible: false },
+          nextPane,
+        );
+
+        return {
+          series: [histogram, line, signal],
+          label: this.labelPane(histogram, `MACD ${MACD_FAST}/${MACD_SLOW}/${MACD_SIGNAL}`),
+          setData: (candles) => {
+            const points = macd(candles);
+            histogram.setData(
+              points.map((point) => ({
+                time: point.time as UTCTimestamp,
+                value: point.histogram,
+                color: point.histogram >= 0 ? COLORS.macdHistUp : COLORS.macdHistDown,
+              })),
+            );
+            line.setData(
+              points.map((point) => ({ time: point.time as UTCTimestamp, value: point.macd })),
+            );
+            signal.setData(
+              points.map((point) => ({ time: point.time as UTCTimestamp, value: point.signal })),
+            );
+          },
+        };
+      }
     }
-    return chart.addSeries(
-      HistogramSeries,
-      { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false },
-      chart.panes().length,
-    );
   }
 
-  private addRsiSeries(): ISeriesApi<'Baseline'> | undefined {
-    const chart = this.chart;
-    if (!chart) {
-      return undefined;
-    }
-
-    // A filled baseline reads far better than a hairline at this pane height: the shaded
-    // area above/below 50 shows which side is in control without squinting at the curve.
-    const series = chart.addSeries(
-      BaselineSeries,
-      {
-        baseValue: { type: 'price', price: RSI_MIDLINE },
-        topLineColor: COLORS.rsiStrong,
-        topFillColor1: COLORS.rsiStrongFill,
-        topFillColor2: COLORS.rsiFade,
-        bottomLineColor: COLORS.rsiWeak,
-        bottomFillColor1: COLORS.rsiFade,
-        bottomFillColor2: COLORS.rsiWeakFill,
-        lineWidth: 2,
-        priceLineVisible: false,
-        // RSI is bounded by definition, so pin the scale instead of letting it breathe.
-        autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
-      },
-      chart.panes().length,
-    );
-
-    const bands: ReadonlyArray<[number, string]> = [
-      [RSI_OVERBOUGHT, COLORS.rsiOverboughtBand],
-      [RSI_OVERSOLD, COLORS.rsiOversoldBand],
-    ];
-    for (const [level, color] of bands) {
-      series.createPriceLine({
-        price: level,
-        color,
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: '',
-      });
-    }
-
-    // Names the pane, since stacked panes give no other clue about what each one holds.
-    this.rsiLabel = createTextWatermark(series.getPane(), {
+  /** Names a pane, since stacked panes give no other clue about what each one holds. */
+  private labelPane(series: ISeriesApi<SeriesType>, text: string): ITextWatermarkPluginApi<Time> {
+    return createTextWatermark(series.getPane(), {
       horzAlign: 'right',
       vertAlign: 'top',
-      lines: [{ text: `RSI ${RSI_PERIOD}`, color: COLORS.paneLabel, fontSize: 11 }],
+      lines: [{ text, color: COLORS.paneLabel, fontSize: 11 }],
     });
-
-    return series;
   }
 
   /** Removing a series leaves its pane behind, still taking up height. */
@@ -260,9 +380,12 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
 
   /** Keeps panes in `INDICATORS` order, whatever the order things were switched on in. */
   private orderPanes(): void {
-    let target = 1;
-    for (const { value } of INDICATORS) {
-      const pane = this.seriesFor(value)?.getPane();
+    let target = PRICE_PANE + 1;
+    for (const { value, overlay } of INDICATORS) {
+      if (overlay) {
+        continue;
+      }
+      const pane = this.plots.get(value)?.series[0].getPane();
       if (!pane) {
         continue;
       }
@@ -271,10 +394,6 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       }
       target++;
     }
-  }
-
-  private seriesFor(indicator: Indicator): ISeriesApi<'Histogram' | 'Baseline'> | undefined {
-    return indicator === 'VOLUME' ? this.volumeSeries : this.rsiSeries;
   }
 
   private draw(series: CandleSeries | null): void {
@@ -290,20 +409,9 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       })),
     );
 
-    this.volumeSeries?.setData(
-      candles.map((c) => ({
-        time: c.time as UTCTimestamp,
-        value: c.volume,
-        color: c.close >= c.open ? COLORS.volumeUp : COLORS.volumeDown,
-      })),
-    );
-
-    this.rsiSeries?.setData(
-      relativeStrengthIndex(candles, RSI_PERIOD).map((p) => ({
-        time: p.time as UTCTimestamp,
-        value: p.value,
-      })),
-    );
+    for (const plot of this.plots.values()) {
+      plot.setData(candles);
+    }
 
     if (candles.length) {
       this.chart?.timeScale().fitContent();
@@ -318,10 +426,13 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    // Overlays share the price pane, so they get no height of their own.
     const visible = this.indicators();
     const weights = [
       PANE_WEIGHTS.price,
-      ...INDICATORS.filter(({ value }) => visible.has(value)).map(({ value }) => PANE_WEIGHTS[value]),
+      ...INDICATORS.filter(({ value, overlay }) => !overlay && visible.has(value)).map(
+        ({ value }) => PANE_WEIGHTS[value],
+      ),
     ];
     const sum = weights.reduce((acc, weight) => acc + weight, 0);
 

@@ -1,9 +1,4 @@
-import { Candle } from '../market.models';
-
-export interface IndicatorPoint {
-  time: number;
-  value: number;
-}
+import { Candle, IndicatorPoint } from '../market.models';
 
 /** Standard RSI period. 14 is what TradingView and every textbook use by default. */
 export const RSI_PERIOD = 14;
