@@ -26,3 +26,4 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 ## Pendiente de decidir
 
 - **Periodos configurables** (aparcado 2026-08-15): SMA 50/200 y MACD 12/26/9 están fijos. Hacerlos ajustables pide UI de configuración; se verá si hace falta de verdad.
+- **Repo sin remoto** (2026-08-15): git init hecho, `gh repo create` + push pendientes; el código solo existe en local.
