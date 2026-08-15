@@ -1,0 +1,14 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: tickerlab
+
+tickerlab:
+  yahoo:
+    base-url: https://query1.finance.yahoo.com
+
+logging:
+  level:
+    dev.tickerlab: INFO

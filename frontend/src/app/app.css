@@ -1,0 +1,160 @@
+:host {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  background: #171b26;
+  border-bottom: 1px solid #2a2e39;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.brand-mark {
+  color: #4c7dff;
+  font-size: 1.15rem;
+}
+
+.brand-name {
+  color: #e6e8ed;
+}
+
+app-ticker-search {
+  flex: 1 1 24rem;
+  max-width: 32rem;
+}
+
+.timeframes {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+  padding: 0.2rem;
+  background: #1c2030;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+}
+
+.timeframe {
+  padding: 0.35rem 0.85rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #b2b5be;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.timeframe:hover {
+  color: #e6e8ed;
+}
+
+.timeframe.active {
+  background: #4c7dff;
+  color: #fff;
+}
+
+.quotebar {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem;
+  background: #131722;
+  border-bottom: 1px solid #2a2e39;
+  font-size: 0.85rem;
+  color: #b2b5be;
+}
+
+.quote-symbol {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e6e8ed;
+}
+
+.quote-price {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e6e8ed;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-change {
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-change.up {
+  color: #26a69a;
+}
+
+.quote-change.down {
+  color: #ef5350;
+}
+
+.quote-exchange,
+.quote-status {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.quote-error {
+  color: #ef5350;
+}
+
+.chart-area {
+  min-height: 0;
+  background: #131722;
+}
+
+app-price-chart {
+  display: block;
+  height: 100%;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding: 0.5rem 1rem;
+  background: #171b26;
+  border-top: 1px solid #2a2e39;
+  color: #6b7280;
+  font-size: 0.72rem;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.swatch {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 2px;
+}
+
+.swatch.candle {
+  background: linear-gradient(90deg, #26a69a 50%, #ef5350 50%);
+}
+
+.swatch.volume {
+  background: rgb(38 166 154 / 50%);
+}
+
+.swatch.rsi {
+  background: linear-gradient(180deg, #2ec4b6 50%, #ff6b6b 50%);
+}

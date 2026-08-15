@@ -1,0 +1,57 @@
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">◧</span>
+    <span class="brand-name">TickerLab</span>
+  </div>
+
+  <app-ticker-search (selected)="onSymbolSelected($event)" />
+
+  <div class="timeframes" role="group" aria-label="Temporalidad">
+    @for (option of timeframes; track option.value) {
+      <button
+        type="button"
+        class="timeframe"
+        [class.active]="timeframe() === option.value"
+        (click)="onTimeframeSelected(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+</header>
+
+<section class="quotebar">
+  @if (series(); as data) {
+    <span class="quote-symbol">{{ data.symbol }}</span>
+    <span class="quote-name">{{ data.name }}</span>
+    @if (quote(); as q) {
+      <span class="quote-price">{{ q.close | number: '1.2-2' }} {{ data.currency }}</span>
+      <span class="quote-change" [class.up]="q.positive" [class.down]="!q.positive">
+        {{ q.positive ? '+' : '' }}{{ q.change | number: '1.2-2' }}
+        ({{ q.positive ? '+' : '' }}{{ q.changePercent | number: '1.2-2' }}%)
+      </span>
+      <span class="quote-volume">Vol {{ formatVolume(q.volume) }}</span>
+    }
+    <span class="quote-exchange">{{ data.exchange }}</span>
+  }
+
+  @if (loading()) {
+    <span class="quote-status">Cargando…</span>
+  }
+  @if (error(); as message) {
+    <span class="quote-error">{{ message }}</span>
+  }
+</section>
+
+<main class="chart-area">
+  <app-price-chart [series]="series()" />
+</main>
+
+<footer class="legend">
+  <span><i class="swatch candle"></i> Velas — cada barra es un periodo: verde sube, roja baja</span>
+  <span><i class="swatch volume"></i> Volumen — cuántas acciones se negociaron</span>
+  <span
+    ><i class="swatch rsi"></i> RSI(14) — verde manda la compra, rojo la venta; sobre 70 recalentado,
+    bajo 30 castigado</span
+  >
+</footer>
