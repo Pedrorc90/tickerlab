@@ -1,7 +1,13 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { MarketService } from './market/market.service';
-import { CandleSeries, TIMEFRAMES, Timeframe } from './market/market.models';
+import {
+  CandleSeries,
+  INDICATORS,
+  Indicator,
+  TIMEFRAMES,
+  Timeframe,
+} from './market/market.models';
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
 
@@ -17,9 +23,14 @@ const DEFAULT_SYMBOL = 'AAPL';
 })
 export class App {
   protected readonly timeframes = TIMEFRAMES;
+  protected readonly indicators = INDICATORS;
 
   protected readonly symbol = signal(DEFAULT_SYMBOL);
   protected readonly timeframe = signal<Timeframe>('DAY');
+  /** Everything on by default; the legend switches each one off. */
+  protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(
+    new Set(INDICATORS.map(({ value }) => value)),
+  );
   protected readonly series = signal<CandleSeries | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -53,6 +64,14 @@ export class App {
   protected onSymbolSelected(symbol: string): void {
     this.symbol.set(symbol);
     void this.load();
+  }
+
+  protected toggleIndicator(indicator: Indicator): void {
+    const next = new Set(this.visibleIndicators());
+    if (!next.delete(indicator)) {
+      next.add(indicator);
+    }
+    this.visibleIndicators.set(next);
   }
 
   protected onTimeframeSelected(timeframe: Timeframe): void {

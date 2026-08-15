@@ -44,14 +44,28 @@
 </section>
 
 <main class="chart-area">
-  <app-price-chart [series]="series()" />
+  <app-price-chart [series]="series()" [indicators]="visibleIndicators()" />
 </main>
 
 <footer class="legend">
   <span><i class="swatch candle"></i> Velas — cada barra es un periodo: verde sube, roja baja</span>
-  <span><i class="swatch volume"></i> Volumen — cuántas acciones se negociaron</span>
-  <span
-    ><i class="swatch rsi"></i> RSI(14) — verde manda la compra, rojo la venta; sobre 70 recalentado,
-    bajo 30 castigado</span
-  >
+  @for (indicator of indicators; track indicator.value) {
+    <span class="legend-item">
+      <button
+        type="button"
+        class="legend-toggle"
+        [class.off]="!visibleIndicators().has(indicator.value)"
+        [attr.aria-pressed]="visibleIndicators().has(indicator.value)"
+        [title]="
+          visibleIndicators().has(indicator.value)
+            ? 'Ocultar ' + indicator.label
+            : 'Mostrar ' + indicator.label
+        "
+        (click)="toggleIndicator(indicator.value)"
+      >
+        <i class="swatch {{ indicator.swatch }}"></i> {{ indicator.label }}
+      </button>
+      — {{ indicator.hint }}
+    </span>
+  }
 </footer>
