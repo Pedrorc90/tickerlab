@@ -60,6 +60,16 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
 /** Candles live here, and so does anything drawn on top of them. */
 const PRICE_PANE = 0;
 
+/**
+ * How much of the history the chart opens on. A seventh rather than all of it: fitting the
+ * whole series in squeezes recent bars into a smudge, and recent is what gets looked at.
+ * Whatever is left is still there, one scroll to the left.
+ */
+const INITIAL_VISIBLE_FRACTION = 1 / 7;
+
+/** Empty slots kept to the right of the last bar, matching the time scale's `rightOffset`. */
+const RIGHT_MARGIN_BARS = 4;
+
 /** RSI pivots around 50: above it buyers dominate, below it sellers do. */
 const RSI_MIDLINE = 50;
 
@@ -535,7 +545,11 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     }
 
     if (candles.length) {
-      this.chart?.timeScale().fitContent();
+      const visibleBars = Math.max(1, Math.round(candles.length * INITIAL_VISIBLE_FRACTION));
+      this.chart?.timeScale().setVisibleLogicalRange({
+        from: candles.length - visibleBars,
+        to: candles.length - 1 + RIGHT_MARGIN_BARS,
+      });
     }
   }
 
