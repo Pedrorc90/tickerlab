@@ -17,6 +17,9 @@ import { WatchlistService } from './watchlist.service';
 /** What the inline text field is doing, if anything. */
 type EditMode = 'create' | 'rename';
 
+/** Which tab was open last. UI state, so it lives in the browser and not in the database. */
+const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
+
 @Component({
   selector: 'app-watchlist-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -314,7 +317,7 @@ export class WatchlistPanelComponent {
   readonly selected = output<string>();
 
   protected readonly lists = signal<Watchlist[]>([]);
-  protected readonly activeId = signal<string | null>(null);
+  protected readonly activeId = signal<string | null>(localStorage.getItem(ACTIVE_LIST_KEY));
   protected readonly editing = signal<EditMode | null>(null);
   protected readonly error = signal<string | null>(null);
 
@@ -334,6 +337,14 @@ export class WatchlistPanelComponent {
   constructor() {
     // The field only exists while editing, so focus has to wait for it to appear.
     effect(() => this.editBox()?.nativeElement.focus());
+    // Stores `active()`, not `activeId()`: a stored id whose list is gone resolves to the
+    // fallback here and gets overwritten instead of lingering.
+    effect(() => {
+      const id = this.active()?.id;
+      if (id) {
+        localStorage.setItem(ACTIVE_LIST_KEY, id);
+      }
+    });
     void this.reload();
   }
 
