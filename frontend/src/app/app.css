@@ -337,6 +337,10 @@ app-price-chart {
   background: #a78bfa;
 }
 
+.swatch.bollinger {
+  background: linear-gradient(180deg, #6f86c9 30%, rgb(111 134 201 / 30%) 30% 70%, #6f86c9 70%);
+}
+
 .swatch.macd {
   background: linear-gradient(90deg, #4b8bff 50%, #ff9f43 50%);
 }

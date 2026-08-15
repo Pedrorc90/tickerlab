@@ -25,8 +25,9 @@ import {
   createChart,
   createTextWatermark,
 } from 'lightweight-charts';
+import { bollingerBands } from './indicators/bollinger';
 import { macd } from './indicators/macd';
-import { simpleMovingAverage } from './indicators/moving-average';
+import { simpleMovingAverage, volumeMovingAverage } from './indicators/moving-average';
 import { RSI_OVERBOUGHT, RSI_OVERSOLD, relativeStrengthIndex } from './indicators/rsi';
 import {
   Candle,
@@ -48,6 +49,7 @@ const COLORS = {
   down: '#ef5350',
   volumeUp: 'rgba(38, 166, 154, 0.5)',
   volumeDown: 'rgba(239, 83, 80, 0.5)',
+  volumeAverage: '#e0e3eb',
   rsiStrong: '#2ec4b6',
   rsiWeak: '#ff6b6b',
   rsiStrongFill: 'rgba(46, 196, 182, 0.45)',
@@ -58,6 +60,8 @@ const COLORS = {
   paneLabel: 'rgba(178, 181, 190, 0.55)',
   smaFast: '#f0b90b',
   smaSlow: '#a78bfa',
+  bollingerBand: '#6f86c9',
+  bollingerBasis: 'rgba(111, 134, 201, 0.55)',
   macdLine: '#4b8bff',
   macdSignal: '#ff9f43',
   macdHistUp: 'rgba(38, 166, 154, 0.55)',
@@ -76,6 +80,7 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
   // Overlays never get a pane of their own; these are here only to keep the record total.
   SMA50: 0,
   SMA200: 0,
+  BOLLINGER: 0,
 };
 
 /** Candles live here, and so does anything drawn on top of them. */
@@ -290,23 +295,85 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
         };
       }
 
+      case 'BOLLINGER': {
+        // Three lines share one calculation. The basis is dashed so it is not mistaken
+        // for one more SMA, and all three are hairlines: the candles come first.
+        const [upper, basis, lower] = ['upper', 'basis', 'lower'].map((part) =>
+          chart.addSeries(
+            LineSeries,
+            {
+              color: part === 'basis' ? COLORS.bollingerBasis : COLORS.bollingerBand,
+              lineWidth: 1,
+              lineStyle: part === 'basis' ? LineStyle.Dashed : LineStyle.Solid,
+              priceLineVisible: false,
+              lastValueVisible: false,
+              crosshairMarkerVisible: false,
+            },
+            PRICE_PANE,
+          ),
+        );
+
+        return {
+          series: [upper, basis, lower],
+          signature,
+          setData: (candles) => {
+            const points = bollingerBands(
+              candles,
+              periods.bollinger,
+              periods.bollingerDeviations,
+            );
+            upper.setData(
+              points.map((point) => ({ time: point.time as UTCTimestamp, value: point.upper })),
+            );
+            basis.setData(
+              points.map((point) => ({ time: point.time as UTCTimestamp, value: point.middle })),
+            );
+            lower.setData(
+              points.map((point) => ({ time: point.time as UTCTimestamp, value: point.lower })),
+            );
+          },
+        };
+      }
+
       case 'VOLUME': {
         const series = chart.addSeries(
           HistogramSeries,
           { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false },
           nextPane,
         );
+        // Added after the bars so the average is drawn over them: a bar clearing this
+        // line is the whole point of the pane.
+        const average = chart.addSeries(
+          LineSeries,
+          {
+            color: COLORS.volumeAverage,
+            lineWidth: 1,
+            priceFormat: { type: 'volume' },
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          },
+          nextPane,
+        );
+
         return {
-          series: [series],
+          series: [series, average],
           signature,
-          setData: (candles) =>
+          setData: (candles) => {
             series.setData(
               candles.map((candle) => ({
                 time: candle.time as UTCTimestamp,
                 value: candle.volume,
                 color: candle.close >= candle.open ? COLORS.volumeUp : COLORS.volumeDown,
               })),
-            ),
+            );
+            average.setData(
+              volumeMovingAverage(candles, periods.volumeAverage).map((point) => ({
+                time: point.time as UTCTimestamp,
+                value: point.value,
+              })),
+            );
+          },
         };
       }
 

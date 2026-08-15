@@ -9,6 +9,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 - [x] **F3 — MACD y medias móviles** (2026-08-15, probada en la app): MACD 12/26/9 en su propio panel (histograma + línea + señal) y SMA 50/200 sobre las velas. Cálculo en cliente (`indicators/macd.ts`, `indicators/moving-average.ts`). Las medias son *overlays*: van al panel del precio y no entran en el reparto de alturas. Periodos fijos, no configurables por el usuario — se decidió dejar la UI de configuración fuera.
 - [x] **F4 — Mostrar/ocultar indicadores en vivo** (2026-08-15, probada en la app): la leyenda del pie es el control — cada indicador es una píldora que apaga y enciende su panel. Adelantada sobre F3 con los dos indicadores que ya había. Los paneles se añaden y se quitan (no se ocultan), así que el resto se reparte el alto liberado y el precio solo ocupa el 100 %.
 
+- [x] **F5 — Bollinger y media de volumen** (2026-08-16, dada por buena con la app arrancada): bandas 20/2 como *overlay* sobre las velas (banda alta y baja continuas, base a trazos para no confundirla con una SMA más) y media móvil 20 del volumen dentro del propio panel de volumen, no como píldora aparte: sin volumen a la vista su media no dice nada. Cálculo en cliente (`indicators/bollinger.ts`, `volumeMovingAverage` en `indicators/moving-average.ts`), media y desviación típica en una sola pasada.
+
 ## Notas
 
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
@@ -21,9 +23,10 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - **Universo de tickers de F2: Nasdaq Trader** (decidido 2026-08-15). Ficheros públicos y oficiales de valores listados (`nasdaqlisted.txt` + `otherlisted.txt`), sin API key, ~6.000 símbolos. Descartados: fichero estático del S&P 500 (500 nombres, se pudre a mano) y los `screener` de Yahoo (traen los campos ya filtrados, pero son aún menos documentados que el `chart`). Queda por concretar al abrir F2: esquema en Postgres y cadencia del job de refresco.
 
-- **Añadir un indicador nuevo** son dos sitios: una entrada en `INDICATORS` (`market.models.ts`, con su `overlay`) y un `case` en `createPlot` (`price-chart.component.ts`). El toggle de la leyenda y el reparto de alturas salen gratis.
+- **Añadir un indicador nuevo** son tres sitios: una entrada en `INDICATORS` (`market.models.ts`, con su `overlay`), un `case` en `createPlot` (`price-chart.component.ts`) y el color de su píldora (`.swatch.<nombre>` en `app.css`, que hay que mantener igual al de la serie). El toggle de la leyenda y el reparto de alturas salen gratis. Si el indicador acompaña a otro en su panel (caso de la media de volumen), va como serie extra del `case` que ya existe: `overlay` solo distingue "panel del precio" de "panel propio".
 
 ## Pendiente de decidir
 
 - **Periodos configurables** (aparcado 2026-08-15): SMA 50/200 y MACD 12/26/9 están fijos. Hacerlos ajustables pide UI de configuración; se verá si hace falta de verdad.
+- **Indicadores aparcados** (2026-08-16): ATR(14) —riesgo: stop a 2×ATR y tamaño de posición—, EMA 20/50 y ADX/DMI(14). Recomendados al abrir F5 y descartados por ahora; el ATR es el que más aporta y el que pide panel nuevo. VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
 - **Repo sin remoto** (2026-08-15): git init hecho, `gh repo create` + push pendientes; el código solo existe en local.

@@ -11,13 +11,22 @@ export const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
  * Indicators the user can switch off. Candles are not one of them: without candles
  * there is no chart. Order here is the order the panes keep on screen.
  */
-export type Indicator = 'SMA50' | 'SMA200' | 'VOLUME' | 'RSI' | 'MACD';
+export type Indicator = 'SMA50' | 'SMA200' | 'BOLLINGER' | 'VOLUME' | 'RSI' | 'MACD';
 
 /**
  * Every period the user can edit, flattened into one key space. An indicator owns one or
  * more of these; the chart reads them straight from `IndicatorPeriods`.
  */
-export type PeriodKey = 'smaFast' | 'smaSlow' | 'rsi' | 'macdFast' | 'macdSlow' | 'macdSignal';
+export type PeriodKey =
+  | 'smaFast'
+  | 'smaSlow'
+  | 'bollinger'
+  | 'bollingerDeviations'
+  | 'volumeAverage'
+  | 'rsi'
+  | 'macdFast'
+  | 'macdSlow'
+  | 'macdSignal';
 
 export type IndicatorPeriods = Readonly<Record<PeriodKey, number>>;
 
@@ -59,12 +68,23 @@ export const INDICATORS: ReadonlyArray<{
     params: [{ key: 'smaSlow', label: 'Periodo', defaultValue: 200, min: 2, max: 400 }],
   },
   {
+    value: 'BOLLINGER',
+    swatch: 'bollinger',
+    label: 'BB',
+    hint: 'Rango normal del precio: fuera de banda, está estirado.',
+    overlay: true,
+    params: [
+      { key: 'bollinger', label: 'Periodo', defaultValue: 20, min: 2, max: 200 },
+      { key: 'bollingerDeviations', label: 'Desviaciones', defaultValue: 2, min: 1, max: 4 },
+    ],
+  },
+  {
     value: 'VOLUME',
     swatch: 'volume',
     label: 'Volumen',
-    hint: 'Acciones negociadas en cada vela: mide el interés.',
+    hint: 'Negociado por vela, con su media: mide el interés.',
     overlay: false,
-    params: [],
+    params: [{ key: 'volumeAverage', label: 'Media', defaultValue: 20, min: 2, max: 200 }],
   },
   {
     value: 'RSI',
