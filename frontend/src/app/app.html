@@ -44,46 +44,60 @@
 </section>
 
 <div class="workspace">
-  <main class="chart-area">
-    <app-price-chart [series]="series()" [indicators]="visibleIndicators()" [periods]="periods()" />
-  </main>
-
-  <app-watchlist-panel
-    [currentSymbol]="symbol()"
-    [currentName]="series()?.name ?? null"
-    (selected)="onSymbolSelected($event)"
-  />
-</div>
-
-<footer class="legend">
-  <span><i class="swatch candle"></i> Velas — precio del periodo</span>
-  @for (indicator of indicators; track indicator.value) {
-    <span class="legend-item">
+  <aside class="indicators" aria-label="Indicadores">
+    <div class="indicators-head">
+      <span class="indicators-title">Indicadores</span>
       <button
         type="button"
-        class="legend-toggle"
-        [class.off]="!visibleIndicators().has(indicator.value)"
-        [attr.aria-pressed]="visibleIndicators().has(indicator.value)"
-        [title]="
-          visibleIndicators().has(indicator.value)
-            ? 'Ocultar ' + indicator.label
-            : 'Mostrar ' + indicator.label
-        "
-        (click)="toggleIndicator(indicator.value)"
+        class="hints-toggle"
+        [class.on]="showHints()"
+        [attr.aria-pressed]="showHints()"
+        [title]="showHints() ? 'Ocultar descripciones' : 'Mostrar descripciones'"
+        (click)="toggleHints()"
       >
-        <i class="swatch {{ indicator.swatch }}"></i> {{ labelOf(indicator.label, indicator.params) }}
+        ?
       </button>
-      @if (indicator.params.length) {
-        <button
-          type="button"
-          class="legend-config"
-          [class.open]="openPopover() === indicator.value"
-          [attr.aria-expanded]="openPopover() === indicator.value"
-          [title]="'Ajustar periodos de ' + indicator.label"
-          (click)="$event.stopPropagation(); togglePopover(indicator.value)"
-        >
-          ▾
-        </button>
+    </div>
+
+    <span class="indicator-row static">
+      <span class="legend-toggle plain"><i class="swatch candle"></i> Velas</span>
+      @if (showHints()) {
+        <small class="indicator-hint">Precio de apertura, cierre, máximo y mínimo.</small>
+      }
+    </span>
+
+    @for (indicator of indicators; track indicator.value) {
+      <span class="indicator-row">
+        <span class="indicator-controls">
+          <button
+            type="button"
+            class="legend-toggle"
+            [class.off]="!visibleIndicators().has(indicator.value)"
+            [attr.aria-pressed]="visibleIndicators().has(indicator.value)"
+            [title]="
+              visibleIndicators().has(indicator.value)
+                ? 'Ocultar ' + indicator.label
+                : 'Mostrar ' + indicator.label
+            "
+            (click)="toggleIndicator(indicator.value)"
+          >
+            <i class="swatch {{ indicator.swatch }}"></i>
+            {{ labelOf(indicator.label, indicator.params) }}
+          </button>
+          @if (indicator.params.length) {
+            <button
+              type="button"
+              class="legend-config"
+              [class.open]="openPopover() === indicator.value"
+              [attr.aria-expanded]="openPopover() === indicator.value"
+              [title]="'Ajustar periodos de ' + indicator.label"
+              (click)="$event.stopPropagation(); togglePopover(indicator.value)"
+            >
+              ▾
+            </button>
+          }
+        </span>
+
         @if (openPopover() === indicator.value) {
           <div class="period-popover" (click)="$event.stopPropagation()">
             @for (param of indicator.params; track param.key) {
@@ -102,8 +116,21 @@
             }
           </div>
         }
-      }
-      — {{ indicator.hint }}
-    </span>
-  }
-</footer>
+
+        @if (showHints()) {
+          <small class="indicator-hint">{{ indicator.hint }}</small>
+        }
+      </span>
+    }
+  </aside>
+
+  <main class="chart-area">
+    <app-price-chart [series]="series()" [indicators]="visibleIndicators()" [periods]="periods()" />
+  </main>
+
+  <app-watchlist-panel
+    [currentSymbol]="symbol()"
+    [currentName]="series()?.name ?? null"
+    (selected)="onSymbolSelected($event)"
+  />
+</div>

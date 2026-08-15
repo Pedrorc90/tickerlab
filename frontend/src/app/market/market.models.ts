@@ -35,6 +35,7 @@ export const INDICATORS: ReadonlyArray<{
   swatch: string;
   /** Name without periods: the current ones are appended by `periodSuffix`. */
   label: string;
+  /** What the indicator says, in plain words. Ten words at most: it sits under the pill. */
   hint: string;
   /** Drawn on top of the candles instead of getting a pane of its own. */
   overlay: boolean;
@@ -45,7 +46,7 @@ export const INDICATORS: ReadonlyArray<{
     value: 'SMA50',
     swatch: 'sma50',
     label: 'SMA',
-    hint: 'tendencia media',
+    hint: 'Media del precio: marca la tendencia a medio plazo.',
     overlay: true,
     params: [{ key: 'smaFast', label: 'Periodo', defaultValue: 50, min: 2, max: 400 }],
   },
@@ -53,16 +54,23 @@ export const INDICATORS: ReadonlyArray<{
     value: 'SMA200',
     swatch: 'sma200',
     label: 'SMA',
-    hint: 'tendencia de fondo',
+    hint: 'Media larga: separa mercado alcista de bajista.',
     overlay: true,
     params: [{ key: 'smaSlow', label: 'Periodo', defaultValue: 200, min: 2, max: 400 }],
   },
-  { value: 'VOLUME', swatch: 'volume', label: 'Volumen', hint: 'acciones negociadas', overlay: false, params: [] },
+  {
+    value: 'VOLUME',
+    swatch: 'volume',
+    label: 'Volumen',
+    hint: 'Acciones negociadas en cada vela: mide el interés.',
+    overlay: false,
+    params: [],
+  },
   {
     value: 'RSI',
     swatch: 'rsi',
     label: 'RSI',
-    hint: 'fuerza compradora',
+    hint: 'Mide si el precio está sobrecomprado o sobrevendido.',
     overlay: false,
     params: [{ key: 'rsi', label: 'Periodo', defaultValue: 14, min: 2, max: 100 }],
   },
@@ -70,7 +78,7 @@ export const INDICATORS: ReadonlyArray<{
     value: 'MACD',
     swatch: 'macd',
     label: 'MACD',
-    hint: 'giros de tendencia',
+    hint: 'Cruce de medias: avisa de giros en la tendencia.',
     overlay: false,
     params: [
       { key: 'macdFast', label: 'Rápida', defaultValue: 12, min: 2, max: 100 },

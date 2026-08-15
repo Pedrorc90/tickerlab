@@ -1,6 +1,6 @@
 :host {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto 1fr;
   height: 100dvh;
   min-height: 0;
 }
@@ -114,10 +114,10 @@ app-ticker-search {
   color: #ef5350;
 }
 
-/* Chart on the left, watchlists docked on the right. */
+/* Indicators docked left, chart in the middle, watchlists on the right. */
 .workspace {
   display: grid;
-  grid-template-columns: 1fr 15rem;
+  grid-template-columns: 13.5rem 1fr 15rem;
   min-height: 0;
 }
 
@@ -132,28 +132,84 @@ app-price-chart {
   height: 100%;
 }
 
-.legend {
+.indicators {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1.25rem;
-  padding: 0.5rem 1rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.6rem 0.75rem;
+  overflow-y: auto;
   background: #171b26;
-  border-top: 1px solid #2a2e39;
+  border-right: 1px solid #2a2e39;
   color: #6b7280;
   font-size: 0.72rem;
 }
 
-.legend span,
-.legend-toggle {
-  display: inline-flex;
+.indicators-head {
+  display: flex;
   align-items: center;
   gap: 0.4rem;
+  color: #9ca3af;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-.legend-item {
-  gap: 0.35rem;
-  /* Anchors the period popover to this pill. */
+.indicators-title {
+  flex: 1;
+}
+
+/* Shows and hides every description at once. */
+.hints-toggle {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  border: 1px solid #323744;
+  border-radius: 999px;
+  background: #222735;
+  color: #6b7280;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.hints-toggle:hover {
+  color: #fff;
+}
+
+.hints-toggle.on {
+  border-color: #4c7dff;
+  color: #4c7dff;
+}
+
+.indicator-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  /* Anchors the period popover to this row. */
   position: relative;
+}
+
+.indicator-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.indicator-hint {
+  color: #6b7280;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+/* The candle entry is a label, not a switch: nothing to toggle without candles. */
+.legend-toggle.plain {
+  align-self: flex-start;
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
 }
 
 /* Sits flush against its pill so the pair reads as one control. */
@@ -177,10 +233,11 @@ app-price-chart {
   color: #fff;
 }
 
+/* Opens over the chart, to the right: the panel itself is too narrow to hold it. */
 .period-popover {
   position: absolute;
-  bottom: calc(100% + 0.4rem);
-  left: 0;
+  top: 100%;
+  left: 0.5rem;
   z-index: 10;
   display: grid;
   gap: 0.4rem;
@@ -217,6 +274,10 @@ app-price-chart {
 
 /* A pill, so it reads as pressable next to the plain legend text. */
 .legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
   padding: 0.15rem 0.55rem;
   border: 1px solid #323744;
   border-radius: 999px;

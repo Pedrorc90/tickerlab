@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { MarketService } from './market/market.service';
 import {
   CandleSeries,
@@ -18,6 +18,9 @@ import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
 
 /** Something recognisable has to be on screen before the user types anything. */
 const DEFAULT_SYMBOL = 'AAPL';
+
+/** Whether the indicator descriptions were left open. UI state, so it stays in the browser. */
+const SHOW_HINTS_KEY = 'tickerlab.showIndicatorHints';
 
 @Component({
   selector: 'app-root',
@@ -43,6 +46,8 @@ export class App {
   protected readonly periods = signal<IndicatorPeriods>(DEFAULT_PERIODS);
   /** Which pill has its period popover open, if any. */
   protected readonly openPopover = signal<Indicator | null>(null);
+  /** Descriptions under each pill. On the first visit they are shown; after that, as left. */
+  protected readonly showHints = signal(localStorage.getItem(SHOW_HINTS_KEY) !== 'false');
   protected readonly series = signal<CandleSeries | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -70,6 +75,7 @@ export class App {
   private requestId = 0;
 
   constructor() {
+    effect(() => localStorage.setItem(SHOW_HINTS_KEY, `${this.showHints()}`));
     void this.load();
   }
 
@@ -90,6 +96,10 @@ export class App {
   protected labelOf(label: string, params: ReadonlyArray<PeriodParam>): string {
     const suffix = periodSuffix(params, this.periods());
     return suffix ? `${label} ${suffix}` : label;
+  }
+
+  protected toggleHints(): void {
+    this.showHints.update((shown) => !shown);
   }
 
   protected togglePopover(indicator: Indicator): void {
