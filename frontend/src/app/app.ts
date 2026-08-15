@@ -3,10 +3,14 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { MarketService } from './market/market.service';
 import {
   CandleSeries,
+  DEFAULT_PERIODS,
   INDICATORS,
   Indicator,
+  IndicatorPeriods,
+  PeriodParam,
   TIMEFRAMES,
   Timeframe,
+  periodSuffix,
 } from './market/market.models';
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
@@ -20,6 +24,9 @@ const DEFAULT_SYMBOL = 'AAPL';
   imports: [TickerSearchComponent, PriceChartComponent, DecimalPipe],
   templateUrl: './app.html',
   styleUrl: './app.css',
+  // Clicking anywhere else dismisses an open period popover; the popover itself stops
+  // the event before it gets here.
+  host: { '(document:click)': 'openPopover.set(null)' },
 })
 export class App {
   protected readonly timeframes = TIMEFRAMES;
@@ -31,6 +38,10 @@ export class App {
   protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(
     new Set(INDICATORS.map(({ value }) => value)),
   );
+  /** Live periods, in memory only: a reload brings back the textbook defaults. */
+  protected readonly periods = signal<IndicatorPeriods>(DEFAULT_PERIODS);
+  /** Which pill has its period popover open, if any. */
+  protected readonly openPopover = signal<Indicator | null>(null);
   protected readonly series = signal<CandleSeries | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -72,6 +83,31 @@ export class App {
       next.add(indicator);
     }
     this.visibleIndicators.set(next);
+  }
+
+  /** `SMA 50`, `MACD 12/26/9`, plain `Volumen` — whatever the pill has to say right now. */
+  protected labelOf(label: string, params: ReadonlyArray<PeriodParam>): string {
+    const suffix = periodSuffix(params, this.periods());
+    return suffix ? `${label} ${suffix}` : label;
+  }
+
+  protected togglePopover(indicator: Indicator): void {
+    this.openPopover.update((open) => (open === indicator ? null : indicator));
+  }
+
+  /**
+   * Out-of-range or half-typed values would blank the indicator out, so the raw input is
+   * clamped to the param's bounds and anything unparseable falls back to the default.
+   * Returns what was kept so the input can show the clamped number instead of what was typed —
+   * a plain `[value]` binding would not repaint when the clamp lands on the previous value.
+   */
+  protected setPeriod(param: PeriodParam, raw: string): string {
+    const parsed = Number.parseInt(raw, 10);
+    const value = Number.isNaN(parsed)
+      ? param.defaultValue
+      : Math.min(param.max, Math.max(param.min, parsed));
+    this.periods.update((periods) => ({ ...periods, [param.key]: value }));
+    return `${value}`;
   }
 
   protected onTimeframeSelected(timeframe: Timeframe): void {

@@ -13,20 +13,85 @@ export const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
  */
 export type Indicator = 'SMA50' | 'SMA200' | 'VOLUME' | 'RSI' | 'MACD';
 
+/**
+ * Every period the user can edit, flattened into one key space. An indicator owns one or
+ * more of these; the chart reads them straight from `IndicatorPeriods`.
+ */
+export type PeriodKey = 'smaFast' | 'smaSlow' | 'rsi' | 'macdFast' | 'macdSlow' | 'macdSignal';
+
+export type IndicatorPeriods = Readonly<Record<PeriodKey, number>>;
+
+/** One editable number of an indicator. `min`/`max` keep the chart from going blank. */
+export interface PeriodParam {
+  key: PeriodKey;
+  label: string;
+  defaultValue: number;
+  min: number;
+  max: number;
+}
+
 export const INDICATORS: ReadonlyArray<{
   value: Indicator;
   swatch: string;
+  /** Name without periods: the current ones are appended by `periodSuffix`. */
   label: string;
   hint: string;
   /** Drawn on top of the candles instead of getting a pane of its own. */
   overlay: boolean;
+  /** Editable periods, in the order the popover shows them. Empty means nothing to tune. */
+  params: ReadonlyArray<PeriodParam>;
 }> = [
-  { value: 'SMA50', swatch: 'sma50', label: 'SMA 50', hint: 'tendencia media', overlay: true },
-  { value: 'SMA200', swatch: 'sma200', label: 'SMA 200', hint: 'tendencia de fondo', overlay: true },
-  { value: 'VOLUME', swatch: 'volume', label: 'Volumen', hint: 'acciones negociadas', overlay: false },
-  { value: 'RSI', swatch: 'rsi', label: 'RSI(14)', hint: 'fuerza compradora', overlay: false },
-  { value: 'MACD', swatch: 'macd', label: 'MACD', hint: 'giros de tendencia', overlay: false },
+  {
+    value: 'SMA50',
+    swatch: 'sma50',
+    label: 'SMA',
+    hint: 'tendencia media',
+    overlay: true,
+    params: [{ key: 'smaFast', label: 'Periodo', defaultValue: 50, min: 2, max: 400 }],
+  },
+  {
+    value: 'SMA200',
+    swatch: 'sma200',
+    label: 'SMA',
+    hint: 'tendencia de fondo',
+    overlay: true,
+    params: [{ key: 'smaSlow', label: 'Periodo', defaultValue: 200, min: 2, max: 400 }],
+  },
+  { value: 'VOLUME', swatch: 'volume', label: 'Volumen', hint: 'acciones negociadas', overlay: false, params: [] },
+  {
+    value: 'RSI',
+    swatch: 'rsi',
+    label: 'RSI',
+    hint: 'fuerza compradora',
+    overlay: false,
+    params: [{ key: 'rsi', label: 'Periodo', defaultValue: 14, min: 2, max: 100 }],
+  },
+  {
+    value: 'MACD',
+    swatch: 'macd',
+    label: 'MACD',
+    hint: 'giros de tendencia',
+    overlay: false,
+    params: [
+      { key: 'macdFast', label: 'Rápida', defaultValue: 12, min: 2, max: 100 },
+      { key: 'macdSlow', label: 'Lenta', defaultValue: 26, min: 3, max: 200 },
+      { key: 'macdSignal', label: 'Señal', defaultValue: 9, min: 2, max: 100 },
+    ],
+  },
 ];
+
+/** The textbook periods every indicator starts on. Derived so the numbers live in one place. */
+export const DEFAULT_PERIODS: IndicatorPeriods = Object.fromEntries(
+  INDICATORS.flatMap(({ params }) => params.map((param) => [param.key, param.defaultValue])),
+) as IndicatorPeriods;
+
+/** `12/26/9` for MACD, `50` for an SMA, empty for indicators with nothing to tune. */
+export function periodSuffix(
+  params: ReadonlyArray<PeriodParam>,
+  periods: IndicatorPeriods,
+): string {
+  return params.map((param) => periods[param.key]).join('/');
+}
 
 /** One point of a computed indicator. `time` matches the candle it came from. */
 export interface IndicatorPoint {

@@ -25,10 +25,18 @@ import {
   createChart,
   createTextWatermark,
 } from 'lightweight-charts';
-import { MACD_FAST, MACD_SIGNAL, MACD_SLOW, macd } from './indicators/macd';
-import { SMA_FAST, SMA_SLOW, simpleMovingAverage } from './indicators/moving-average';
-import { RSI_OVERBOUGHT, RSI_OVERSOLD, RSI_PERIOD, relativeStrengthIndex } from './indicators/rsi';
-import { Candle, CandleSeries, INDICATORS, Indicator } from './market.models';
+import { macd } from './indicators/macd';
+import { simpleMovingAverage } from './indicators/moving-average';
+import { RSI_OVERBOUGHT, RSI_OVERSOLD, relativeStrengthIndex } from './indicators/rsi';
+import {
+  Candle,
+  CandleSeries,
+  DEFAULT_PERIODS,
+  INDICATORS,
+  Indicator,
+  IndicatorPeriods,
+  periodSuffix,
+} from './market.models';
 
 /** Dark palette, close to what trading terminals use. */
 const COLORS = {
@@ -81,6 +89,8 @@ interface IndicatorPlot {
   series: ISeriesApi<SeriesType>[];
   setData: (candles: Candle[]) => void;
   label?: ITextWatermarkPluginApi<Time>;
+  /** Periods this plot was built with — a different one means it has to be rebuilt. */
+  signature: string;
 }
 
 @Component({
@@ -122,6 +132,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   readonly indicators = input<ReadonlySet<Indicator>>(
     new Set<Indicator>(INDICATORS.map(({ value }) => value)),
   );
+  readonly periods = input<IndicatorPeriods>(DEFAULT_PERIODS);
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
 
@@ -137,8 +148,9 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     effect(() => {
       const series = this.series();
       const indicators = this.indicators();
+      const periods = this.periods();
       if (this.chart) {
-        this.syncIndicators(indicators);
+        this.syncIndicators(indicators, periods);
         this.draw(series);
         this.layoutPanes();
       }
@@ -147,7 +159,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.createChart();
-    this.syncIndicators(this.indicators());
+    this.syncIndicators(this.indicators(), this.periods());
     this.draw(this.series());
     this.layoutPanes();
   }
@@ -191,23 +203,43 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     this.resizeObserver.observe(element);
   }
 
-  /** Adds and removes indicator series so the chart matches what the legend has switched on. */
-  private syncIndicators(visible: ReadonlySet<Indicator>): void {
+  /**
+   * Adds and removes indicator series so the chart matches what the legend has switched on,
+   * and rebuilds any whose periods changed — a new period means new data *and* a new pane
+   * label, which is cheaper to redo from scratch than to patch in place.
+   *
+   * Teardown runs before setup on purpose: a fresh pane is created at `panes().length`, so
+   * the stale empty panes have to be gone before anything new asks for an index.
+   */
+  private syncIndicators(visible: ReadonlySet<Indicator>, periods: IndicatorPeriods): void {
     const chart = this.chart;
     if (!chart) {
       return;
     }
 
-    for (const { value } of INDICATORS) {
+    const stale: Indicator[] = [];
+    for (const { value, params } of INDICATORS) {
       const plot = this.plots.get(value);
-      if (visible.has(value) && !plot) {
-        this.plots.set(value, this.createPlot(chart, value));
-      } else if (!visible.has(value) && plot) {
+      if (!plot) {
+        continue;
+      }
+      if (!visible.has(value) || plot.signature !== periodSuffix(params, periods)) {
         plot.label?.detach();
         for (const series of plot.series) {
           chart.removeSeries(series);
         }
         this.plots.delete(value);
+        stale.push(value);
+      }
+    }
+
+    if (stale.length) {
+      this.dropEmptyPanes();
+    }
+
+    for (const { value } of INDICATORS) {
+      if (visible.has(value) && !this.plots.get(value)) {
+        this.plots.set(value, this.createPlot(chart, value, periods));
       }
     }
 
@@ -219,13 +251,21 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
    * Builds one indicator. Pane indicators land on a fresh pane at the bottom and
    * `orderPanes` moves them into place; overlays go straight onto the price pane.
    */
-  private createPlot(chart: IChartApi, indicator: Indicator): IndicatorPlot {
+  private createPlot(
+    chart: IChartApi,
+    indicator: Indicator,
+    periods: IndicatorPeriods,
+  ): IndicatorPlot {
     const nextPane = chart.panes().length;
+    const signature = periodSuffix(
+      INDICATORS.find(({ value }) => value === indicator)?.params ?? [],
+      periods,
+    );
 
     switch (indicator) {
       case 'SMA50':
       case 'SMA200': {
-        const period = indicator === 'SMA50' ? SMA_FAST : SMA_SLOW;
+        const period = indicator === 'SMA50' ? periods.smaFast : periods.smaSlow;
         const series = chart.addSeries(
           LineSeries,
           {
@@ -239,6 +279,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
         );
         return {
           series: [series],
+          signature,
           setData: (candles) =>
             series.setData(
               simpleMovingAverage(candles, period).map((point) => ({
@@ -257,6 +298,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
         );
         return {
           series: [series],
+          signature,
           setData: (candles) =>
             series.setData(
               candles.map((candle) => ({
@@ -306,10 +348,11 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
 
         return {
           series: [series],
-          label: this.labelPane(series, `RSI ${RSI_PERIOD}`),
+          signature,
+          label: this.labelPane(series, `RSI ${periods.rsi}`),
           setData: (candles) =>
             series.setData(
-              relativeStrengthIndex(candles, RSI_PERIOD).map((point) => ({
+              relativeStrengthIndex(candles, periods.rsi).map((point) => ({
                 time: point.time as UTCTimestamp,
                 value: point.value,
               })),
@@ -337,9 +380,10 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
 
         return {
           series: [histogram, line, signal],
-          label: this.labelPane(histogram, `MACD ${MACD_FAST}/${MACD_SLOW}/${MACD_SIGNAL}`),
+          signature,
+          label: this.labelPane(histogram, `MACD ${signature}`),
           setData: (candles) => {
-            const points = macd(candles);
+            const points = macd(candles, periods.macdFast, periods.macdSlow, periods.macdSignal);
             histogram.setData(
               points.map((point) => ({
                 time: point.time as UTCTimestamp,

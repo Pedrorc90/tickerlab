@@ -44,7 +44,7 @@
 </section>
 
 <main class="chart-area">
-  <app-price-chart [series]="series()" [indicators]="visibleIndicators()" />
+  <app-price-chart [series]="series()" [indicators]="visibleIndicators()" [periods]="periods()" />
 </main>
 
 <footer class="legend">
@@ -63,8 +63,38 @@
         "
         (click)="toggleIndicator(indicator.value)"
       >
-        <i class="swatch {{ indicator.swatch }}"></i> {{ indicator.label }}
+        <i class="swatch {{ indicator.swatch }}"></i> {{ labelOf(indicator.label, indicator.params) }}
       </button>
+      @if (indicator.params.length) {
+        <button
+          type="button"
+          class="legend-config"
+          [class.open]="openPopover() === indicator.value"
+          [attr.aria-expanded]="openPopover() === indicator.value"
+          [title]="'Ajustar periodos de ' + indicator.label"
+          (click)="$event.stopPropagation(); togglePopover(indicator.value)"
+        >
+          ▾
+        </button>
+        @if (openPopover() === indicator.value) {
+          <div class="period-popover" (click)="$event.stopPropagation()">
+            @for (param of indicator.params; track param.key) {
+              <label class="period-field">
+                {{ param.label }}
+                <input
+                  #box
+                  type="number"
+                  [min]="param.min"
+                  [max]="param.max"
+                  [value]="periods()[param.key]"
+                  (click)="$event.stopPropagation()"
+                  (change)="box.value = setPeriod(param, box.value)"
+                />
+              </label>
+            }
+          </div>
+        }
+      }
       — {{ indicator.hint }}
     </span>
   }

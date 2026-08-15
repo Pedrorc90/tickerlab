@@ -144,6 +144,67 @@ app-price-chart {
 
 .legend-item {
   gap: 0.35rem;
+  /* Anchors the period popover to this pill. */
+  position: relative;
+}
+
+/* Sits flush against its pill so the pair reads as one control. */
+.legend-config {
+  padding: 0.15rem 0.35rem;
+  border: 1px solid #323744;
+  border-radius: 999px;
+  background: #222735;
+  color: #6b7280;
+  font: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.legend-config:hover,
+.legend-config.open {
+  background: #2a3040;
+  color: #fff;
+}
+
+.period-popover {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 10;
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border: 1px solid #323744;
+  border-radius: 6px;
+  background: #1c2130;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+  cursor: default;
+}
+
+.period-field {
+  display: grid;
+  grid-template-columns: 4rem 4.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.period-field input {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid #323744;
+  border-radius: 4px;
+  background: #131722;
+  color: #d1d5db;
+  font: inherit;
+}
+
+.period-field input:focus {
+  border-color: #4b5263;
+  outline: none;
 }
 
 /* A pill, so it reads as pressable next to the plain legend text. */
