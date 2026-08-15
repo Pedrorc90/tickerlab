@@ -5,7 +5,9 @@ import {
   ElementRef,
   OnDestroy,
   effect,
+  inject,
   input,
+  untracked,
   viewChild,
 } from '@angular/core';
 import {
@@ -38,35 +40,7 @@ import {
   IndicatorPeriods,
   periodSuffix,
 } from './market.models';
-
-/** Dark palette, close to what trading terminals use. */
-const COLORS = {
-  background: '#131722',
-  text: '#b2b5be',
-  grid: '#1f2430',
-  border: '#2a2e39',
-  up: '#26a69a',
-  down: '#ef5350',
-  volumeUp: 'rgba(38, 166, 154, 0.5)',
-  volumeDown: 'rgba(239, 83, 80, 0.5)',
-  volumeAverage: '#e0e3eb',
-  rsiStrong: '#2ec4b6',
-  rsiWeak: '#ff6b6b',
-  rsiStrongFill: 'rgba(46, 196, 182, 0.45)',
-  rsiWeakFill: 'rgba(255, 107, 107, 0.45)',
-  rsiFade: 'rgba(46, 196, 182, 0)',
-  rsiOverboughtBand: 'rgba(46, 196, 182, 0.55)',
-  rsiOversoldBand: 'rgba(255, 107, 107, 0.55)',
-  paneLabel: 'rgba(178, 181, 190, 0.55)',
-  smaFast: '#f0b90b',
-  smaSlow: '#a78bfa',
-  bollingerBand: '#6f86c9',
-  bollingerBasis: 'rgba(111, 134, 201, 0.55)',
-  macdLine: '#4b8bff',
-  macdSignal: '#ff9f43',
-  macdHistUp: 'rgba(38, 166, 154, 0.55)',
-  macdHistDown: 'rgba(239, 83, 80, 0.55)',
-} as const;
+import { ThemeService } from '../theme/theme.service';
 
 /**
  * Relative pane heights. They are weights, not fractions: whatever is switched off
@@ -126,7 +100,7 @@ interface IndicatorPlot {
       display: grid;
       place-content: center;
       margin: 0;
-      color: #6b7280;
+      color: var(--text-dim);
       font-size: 0.95rem;
       pointer-events: none;
     }
@@ -140,6 +114,13 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   readonly periods = input<IndicatorPeriods>(DEFAULT_PERIODS);
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
+
+  private readonly theme = inject(ThemeService);
+  /**
+   * Plain snapshot rather than a signal read: every method below paints with it, and none of
+   * them should drag the theme into whatever effect happens to be running.
+   */
+  private palette = this.theme.chart();
 
   private chart?: IChartApi;
   private candleSeries?: ISeriesApi<'Candlestick'>;
@@ -160,6 +141,18 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
         this.layoutPanes();
       }
     });
+
+    // Series colours are fixed when the series is created, so a new palette means starting
+    // over. Untracked so this only ever fires on a theme change, never on new data.
+    effect(() => {
+      const palette = this.theme.chart();
+      untracked(() => {
+        this.palette = palette;
+        if (this.chart) {
+          this.rebuild();
+        }
+      });
+    });
   }
 
   ngAfterViewInit(): void {
@@ -174,7 +167,23 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     this.chart?.remove();
   }
 
+  /** Tears the whole chart down and builds it again in the current palette. */
+  private rebuild(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = undefined;
+    this.chart?.remove();
+    this.chart = undefined;
+    this.candleSeries = undefined;
+    this.plots.clear();
+
+    this.createChart();
+    this.syncIndicators(this.indicators(), this.periods());
+    this.draw(this.series());
+    this.layoutPanes();
+  }
+
   private createChart(): void {
+    const COLORS = this.palette;
     const element = this.host().nativeElement;
 
     this.chart = createChart(element, {
@@ -261,6 +270,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     indicator: Indicator,
     periods: IndicatorPeriods,
   ): IndicatorPlot {
+    const COLORS = this.palette;
     const nextPane = chart.panes().length;
     const signature = periodSuffix(
       INDICATORS.find(({ value }) => value === indicator)?.params ?? [],
@@ -475,7 +485,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     return createTextWatermark(series.getPane(), {
       horzAlign: 'right',
       vertAlign: 'top',
-      lines: [{ text, color: COLORS.paneLabel, fontSize: 11 }],
+      lines: [{ text, color: this.palette.paneLabel, fontSize: 11 }],
     });
   }
 

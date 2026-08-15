@@ -1,5 +1,56 @@
-:root {
+/*
+ * UI chrome tokens, one block per theme. The chart's own colours are not here: they live in
+ * theme.service.ts, which pushes them onto :root as --chart-* so the legend swatches can
+ * reuse the exact strings lightweight-charts draws with.
+ */
+:root,
+:root[data-theme='dark'] {
   color-scheme: dark;
+
+  --bg-app: #131722;
+  --bg-panel: #171b26;
+  --bg-raised: #1c2030;
+  --bg-control: #222735;
+  --bg-control-hover: #2a3040;
+  --border: #2a2e39;
+  --border-control: #323744;
+  --border-focus: #4b5263;
+  --text: #e6e8ed;
+  --text-strong: #fff;
+  --text-secondary: #b2b5be;
+  --text-label: #9ca3af;
+  --text-input: #d1d5db;
+  --text-dim: #6b7280;
+  --accent: #4c7dff;
+  --on-accent: #fff;
+  --accent-soft: rgb(76 125 255 / 14%);
+  --danger-soft: rgb(239 83 80 / 12%);
+  --shadow: rgb(0 0 0 / 45%);
+}
+
+/* Ink on paper: the only light theme, so the chart has to follow or it turns into a hole. */
+:root[data-theme='paper'] {
+  color-scheme: light;
+
+  --bg-app: #f4efe4;
+  --bg-panel: #ece5d6;
+  --bg-raised: #e3dbc9;
+  --bg-control: #f8f4ea;
+  --bg-control-hover: #ded4bf;
+  --border: #d5cab2;
+  --border-control: #c9bda3;
+  --border-focus: #a8967a;
+  --text: #2e2a24;
+  --text-strong: #14120f;
+  --text-secondary: #4f483d;
+  --text-label: #6a6152;
+  --text-input: #2e2a24;
+  --text-dim: #8a8071;
+  --accent: #9a5b2d;
+  --on-accent: #fdf9f0;
+  --accent-soft: rgb(154 91 45 / 14%);
+  --danger-soft: rgb(179 64 47 / 12%);
+  --shadow: rgb(90 76 52 / 22%);
 }
 
 * {
@@ -13,8 +64,8 @@ body {
 }
 
 body {
-  background: #131722;
-  color: #e6e8ed;
+  background: var(--bg-app);
+  color: var(--text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;

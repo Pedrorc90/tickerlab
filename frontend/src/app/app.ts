@@ -14,6 +14,7 @@ import {
 } from './market/market.models';
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
+import { ThemePickerComponent } from './theme/theme-picker.component';
 import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
 
 /** Something recognisable has to be on screen before the user types anything. */
@@ -25,7 +26,13 @@ const SHOW_HINTS_KEY = 'tickerlab.showIndicatorHints';
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TickerSearchComponent, PriceChartComponent, WatchlistPanelComponent, DecimalPipe],
+  imports: [
+    TickerSearchComponent,
+    PriceChartComponent,
+    WatchlistPanelComponent,
+    ThemePickerComponent,
+    DecimalPipe,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.css',
   // Clicking anywhere else dismisses an open period popover; the popover itself stops

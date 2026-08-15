@@ -10,8 +10,8 @@
   align-items: center;
   gap: 1rem;
   padding: 0.6rem 1rem;
-  background: #171b26;
-  border-bottom: 1px solid #2a2e39;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
 }
 
 .brand {
@@ -23,12 +23,12 @@
 }
 
 .brand-mark {
-  color: #4c7dff;
+  color: var(--accent);
   font-size: 1.15rem;
 }
 
 .brand-name {
-  color: #e6e8ed;
+  color: var(--text);
 }
 
 app-ticker-search {
@@ -41,8 +41,8 @@ app-ticker-search {
   gap: 0.25rem;
   margin-left: auto;
   padding: 0.2rem;
-  background: #1c2030;
-  border: 1px solid #2a2e39;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
   border-radius: 6px;
 }
 
@@ -51,19 +51,19 @@ app-ticker-search {
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #b2b5be;
+  color: var(--text-secondary);
   font: inherit;
   font-size: 0.85rem;
   cursor: pointer;
 }
 
 .timeframe:hover {
-  color: #e6e8ed;
+  color: var(--text);
 }
 
 .timeframe.active {
-  background: #4c7dff;
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .quotebar {
@@ -72,22 +72,22 @@ app-ticker-search {
   flex-wrap: wrap;
   gap: 0.75rem;
   padding: 0.55rem 1rem;
-  background: #131722;
-  border-bottom: 1px solid #2a2e39;
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--border);
   font-size: 0.85rem;
-  color: #b2b5be;
+  color: var(--text-secondary);
 }
 
 .quote-symbol {
   font-size: 1rem;
   font-weight: 700;
-  color: #e6e8ed;
+  color: var(--text);
 }
 
 .quote-price {
   font-size: 1rem;
   font-weight: 600;
-  color: #e6e8ed;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -96,22 +96,22 @@ app-ticker-search {
 }
 
 .quote-change.up {
-  color: #26a69a;
+  color: var(--chart-up);
 }
 
 .quote-change.down {
-  color: #ef5350;
+  color: var(--chart-down);
 }
 
 .quote-exchange,
 .quote-status {
   margin-left: auto;
-  color: #6b7280;
+  color: var(--text-dim);
   font-size: 0.75rem;
 }
 
 .quote-error {
-  color: #ef5350;
+  color: var(--chart-down);
 }
 
 /* Indicators docked left, chart in the middle, watchlists on the right. */
@@ -124,7 +124,8 @@ app-ticker-search {
 .chart-area {
   min-width: 0;
   min-height: 0;
-  background: #131722;
+  /* The canvas' own colour, so the gap before it sizes itself is not a bright hole. */
+  background: var(--chart-background);
 }
 
 app-price-chart {
@@ -138,9 +139,9 @@ app-price-chart {
   gap: 0.55rem;
   padding: 0.6rem 0.75rem;
   overflow-y: auto;
-  background: #171b26;
-  border-right: 1px solid #2a2e39;
-  color: #6b7280;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  color: var(--text-dim);
   font-size: 0.72rem;
 }
 
@@ -148,7 +149,7 @@ app-price-chart {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  color: #9ca3af;
+  color: var(--text-label);
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -163,10 +164,10 @@ app-price-chart {
   width: 1.25rem;
   height: 1.25rem;
   flex: none;
-  border: 1px solid #323744;
+  border: 1px solid var(--border-control);
   border-radius: 999px;
-  background: #222735;
-  color: #6b7280;
+  background: var(--bg-control);
+  color: var(--text-dim);
   font: inherit;
   line-height: 1;
   cursor: pointer;
@@ -176,12 +177,12 @@ app-price-chart {
 }
 
 .hints-toggle:hover {
-  color: #fff;
+  color: var(--text-strong);
 }
 
 .hints-toggle.on {
-  border-color: #4c7dff;
-  color: #4c7dff;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .indicator-row {
@@ -199,7 +200,7 @@ app-price-chart {
 }
 
 .indicator-hint {
-  color: #6b7280;
+  color: var(--text-dim);
   font-size: 0.68rem;
   line-height: 1.35;
 }
@@ -215,10 +216,10 @@ app-price-chart {
 /* Sits flush against its pill so the pair reads as one control. */
 .legend-config {
   padding: 0.15rem 0.35rem;
-  border: 1px solid #323744;
+  border: 1px solid var(--border-control);
   border-radius: 999px;
-  background: #222735;
-  color: #6b7280;
+  background: var(--bg-control);
+  color: var(--text-dim);
   font: inherit;
   line-height: 1.5;
   cursor: pointer;
@@ -229,8 +230,8 @@ app-price-chart {
 
 .legend-config:hover,
 .legend-config.open {
-  background: #2a3040;
-  color: #fff;
+  background: var(--bg-control-hover);
+  color: var(--text-strong);
 }
 
 /* Opens over the chart, to the right: the panel itself is too narrow to hold it. */
@@ -242,10 +243,10 @@ app-price-chart {
   display: grid;
   gap: 0.4rem;
   padding: 0.6rem;
-  border: 1px solid #323744;
+  border: 1px solid var(--border-control);
   border-radius: 6px;
-  background: #1c2130;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+  background: var(--bg-raised);
+  box-shadow: 0 6px 20px var(--shadow);
   cursor: default;
 }
 
@@ -254,21 +255,21 @@ app-price-chart {
   grid-template-columns: 4rem 4.5rem;
   align-items: center;
   gap: 0.5rem;
-  color: #9ca3af;
+  color: var(--text-label);
   white-space: nowrap;
 }
 
 .period-field input {
   padding: 0.2rem 0.4rem;
-  border: 1px solid #323744;
+  border: 1px solid var(--border-control);
   border-radius: 4px;
-  background: #131722;
-  color: #d1d5db;
+  background: var(--bg-app);
+  color: var(--text-input);
   font: inherit;
 }
 
 .period-field input:focus {
-  border-color: #4b5263;
+  border-color: var(--border-focus);
   outline: none;
 }
 
@@ -279,10 +280,10 @@ app-price-chart {
   gap: 0.4rem;
   flex: 1;
   padding: 0.15rem 0.55rem;
-  border: 1px solid #323744;
+  border: 1px solid var(--border-control);
   border-radius: 999px;
-  background: #222735;
-  color: #d1d5db;
+  background: var(--bg-control);
+  color: var(--text-input);
   font: inherit;
   line-height: 1.5;
   cursor: pointer;
@@ -293,15 +294,15 @@ app-price-chart {
 }
 
 .legend-toggle:hover {
-  border-color: #4b5263;
-  color: #fff;
+  border-color: var(--border-focus);
+  color: var(--text-strong);
 }
 
 /* Switched off: still readable, clearly inactive. */
 .legend-toggle.off {
   border-style: dashed;
   background: transparent;
-  color: #6b7280;
+  color: var(--text-dim);
   text-decoration: line-through;
 }
 
@@ -317,30 +318,36 @@ app-price-chart {
   border-radius: 2px;
 }
 
+/* --chart-* comes from the theme service: same strings the chart itself draws with. */
 .swatch.candle {
-  background: linear-gradient(90deg, #26a69a 50%, #ef5350 50%);
+  background: linear-gradient(90deg, var(--chart-up) 50%, var(--chart-down) 50%);
 }
 
 .swatch.volume {
-  background: rgb(38 166 154 / 50%);
+  background: var(--chart-volume-up);
 }
 
 .swatch.rsi {
-  background: linear-gradient(180deg, #2ec4b6 50%, #ff6b6b 50%);
+  background: linear-gradient(180deg, var(--chart-rsi-strong) 50%, var(--chart-rsi-weak) 50%);
 }
 
 .swatch.sma50 {
-  background: #f0b90b;
+  background: var(--chart-sma-fast);
 }
 
 .swatch.sma200 {
-  background: #a78bfa;
+  background: var(--chart-sma-slow);
 }
 
 .swatch.bollinger {
-  background: linear-gradient(180deg, #6f86c9 30%, rgb(111 134 201 / 30%) 30% 70%, #6f86c9 70%);
+  background: linear-gradient(
+    180deg,
+    var(--chart-bollinger-band) 30%,
+    var(--chart-bollinger-basis) 30% 70%,
+    var(--chart-bollinger-band) 70%
+  );
 }
 
 .swatch.macd {
-  background: linear-gradient(90deg, #4b8bff 50%, #ff9f43 50%);
+  background: linear-gradient(90deg, var(--chart-macd-line) 50%, var(--chart-macd-signal) 50%);
 }

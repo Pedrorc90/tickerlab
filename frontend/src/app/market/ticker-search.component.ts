@@ -50,21 +50,21 @@ const DEBOUNCE_MS = 250;
     .search-input {
       width: 100%;
       padding: 0.55rem 0.85rem;
-      border: 1px solid #2a2e39;
+      border: 1px solid var(--border);
       border-radius: 6px;
-      background: #1c2030;
-      color: #e6e8ed;
+      background: var(--bg-raised);
+      color: var(--text);
       font-size: 0.9rem;
       font-family: inherit;
     }
 
     .search-input:focus {
       outline: none;
-      border-color: #4c7dff;
+      border-color: var(--accent);
     }
 
     .search-input::placeholder {
-      color: #6b7280;
+      color: var(--text-dim);
     }
 
     .results {
@@ -78,10 +78,10 @@ const DEBOUNCE_MS = 250;
       margin: 0;
       padding: 0.25rem;
       list-style: none;
-      background: #1c2030;
-      border: 1px solid #2a2e39;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
       border-radius: 6px;
-      box-shadow: 0 12px 28px rgb(0 0 0 / 45%);
+      box-shadow: 0 12px 28px var(--shadow);
     }
 
     .result {
@@ -94,19 +94,19 @@ const DEBOUNCE_MS = 250;
       border: 0;
       border-radius: 4px;
       background: transparent;
-      color: #e6e8ed;
+      color: var(--text);
       font: inherit;
       text-align: left;
       cursor: pointer;
     }
 
     .result:hover {
-      background: #262b3d;
+      background: var(--bg-control-hover);
     }
 
     .symbol {
       font-weight: 600;
-      color: #4c7dff;
+      color: var(--accent);
     }
 
     .name {
@@ -118,7 +118,7 @@ const DEBOUNCE_MS = 250;
 
     .exchange,
     .hint {
-      color: #6b7280;
+      color: var(--text-dim);
       font-size: 0.75rem;
     }
 

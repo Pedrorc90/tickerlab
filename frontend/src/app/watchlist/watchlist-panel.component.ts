@@ -109,8 +109,8 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       display: flex;
       flex-direction: column;
       min-height: 0;
-      background: #171b26;
-      border-left: 1px solid #2a2e39;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
     }
 
     .panel-head {
@@ -118,7 +118,7 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       flex-wrap: wrap;
       gap: 0.25rem;
       padding: 0.5rem;
-      border-bottom: 1px solid #2a2e39;
+      border-bottom: 1px solid var(--border);
     }
 
     .tab {
@@ -126,10 +126,10 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       align-items: center;
       gap: 0.3rem;
       padding: 0.2rem 0.5rem;
-      border: 1px solid #323744;
+      border: 1px solid var(--border-control);
       border-radius: 999px;
-      background: #222735;
-      color: #b2b5be;
+      background: var(--bg-control);
+      color: var(--text-secondary);
       font: inherit;
       font-size: 0.75rem;
       line-height: 1.5;
@@ -137,14 +137,14 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
     }
 
     .tab:hover {
-      border-color: #4b5263;
-      color: #fff;
+      border-color: var(--border-focus);
+      color: var(--text-strong);
     }
 
     .tab.active {
-      background: #4c7dff;
-      border-color: #4c7dff;
-      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--on-accent);
     }
 
     .tab-count {
@@ -168,7 +168,7 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
     .link {
       border: 0;
       background: transparent;
-      color: #6b7280;
+      color: var(--text-dim);
       font: inherit;
       font-size: 0.68rem;
       text-decoration: underline;
@@ -176,64 +176,64 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
     }
 
     .link:hover {
-      color: #b2b5be;
+      color: var(--text-secondary);
     }
 
     .link.danger:hover {
-      color: #ef5350;
+      color: var(--chart-down);
     }
 
     .editor {
       display: flex;
       gap: 0.25rem;
       padding: 0.5rem;
-      border-bottom: 1px solid #2a2e39;
+      border-bottom: 1px solid var(--border);
     }
 
     .editor input {
       flex: 1;
       min-width: 0;
       padding: 0.3rem 0.4rem;
-      border: 1px solid #323744;
+      border: 1px solid var(--border-control);
       border-radius: 4px;
-      background: #131722;
-      color: #e6e8ed;
+      background: var(--bg-app);
+      color: var(--text);
       font: inherit;
       font-size: 0.8rem;
     }
 
     .editor input:focus {
-      border-color: #4c7dff;
+      border-color: var(--accent);
       outline: none;
     }
 
     .panel-error {
       margin: 0;
       padding: 0.4rem 0.6rem;
-      background: rgb(239 83 80 / 12%);
-      color: #ef5350;
+      background: var(--danger-soft);
+      color: var(--chart-down);
       font-size: 0.72rem;
     }
 
     .add-current {
       margin: 0.5rem;
       padding: 0.4rem;
-      border: 1px dashed #323744;
+      border: 1px dashed var(--border-control);
       border-radius: 6px;
       background: transparent;
-      color: #4c7dff;
+      color: var(--accent);
       font: inherit;
       font-size: 0.78rem;
       cursor: pointer;
     }
 
     .add-current:hover:not(:disabled) {
-      border-color: #4c7dff;
-      background: rgb(76 125 255 / 10%);
+      border-color: var(--accent);
+      background: var(--accent-soft);
     }
 
     .add-current:disabled {
-      color: #6b7280;
+      color: var(--text-dim);
       cursor: default;
     }
 
@@ -253,13 +253,13 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
     }
 
     .entry-row:hover {
-      background: #1f2432;
+      background: var(--bg-raised);
     }
 
     /* The ticker on the chart right now. */
     .entry-row.current {
-      background: rgb(76 125 255 / 14%);
-      box-shadow: inset 2px 0 0 #4c7dff;
+      background: var(--accent-soft);
+      box-shadow: inset 2px 0 0 var(--accent);
     }
 
     .entry {
@@ -277,7 +277,7 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
     }
 
     .entry-symbol {
-      color: #e6e8ed;
+      color: var(--text);
       font-size: 0.82rem;
       font-weight: 600;
     }
@@ -286,7 +286,7 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      color: #6b7280;
+      color: var(--text-dim);
       font-size: 0.7rem;
     }
 
@@ -294,18 +294,18 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       padding: 0.1rem 0.4rem;
       border: 0;
       background: transparent;
-      color: #4b5263;
+      color: var(--border-focus);
       font: inherit;
       cursor: pointer;
     }
 
     .entry-remove:hover {
-      color: #ef5350;
+      color: var(--chart-down);
     }
 
     .empty {
       padding: 0.5rem 0.45rem;
-      color: #6b7280;
+      color: var(--text-dim);
       font-size: 0.72rem;
     }
   `,

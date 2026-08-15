@@ -6,6 +6,10 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- Before the bundle loads, so a saved light theme does not flash dark first. -->
+  <script>
+    document.documentElement.dataset.theme = localStorage.getItem('tickerlab.theme') || 'dark';
+  </script>
 </head>
 <body>
   <app-root></app-root>
