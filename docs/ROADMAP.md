@@ -11,6 +11,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - [x] **F5 — Bollinger y media de volumen** (2026-08-16, dada por buena con la app arrancada): bandas 20/2 como *overlay* sobre las velas (banda alta y baja continuas, base a trazos para no confundirla con una SMA más) y media móvil 20 del volumen dentro del propio panel de volumen, no como píldora aparte: sin volumen a la vista su media no dice nada. Cálculo en cliente (`indicators/bollinger.ts`, `volumeMovingAverage` en `indicators/moving-average.ts`), media y desviación típica en una sola pasada.
 
+- [x] **F6 — Temas y zoom inicial** (2026-08-16, probada en la app): selector de tema arriba a la derecha con Dark (defecto) y Papel, recordado en `localStorage`. El chart abre sobre el último séptimo del histórico en vez de sobre todo (`INITIAL_VISIBLE_FRACTION`, ajustado a ojo en la app): con cinco años en pantalla cada vela era un píxel.
+
 ## Notas
 
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
@@ -25,8 +27,11 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - **Añadir un indicador nuevo** son tres sitios: una entrada en `INDICATORS` (`market.models.ts`, con su `overlay`), un `case` en `createPlot` (`price-chart.component.ts`) y el color de su píldora (`.swatch.<nombre>` en `app.css`, que hay que mantener igual al de la serie). El toggle de la leyenda y el reparto de alturas salen gratis. Si el indicador acompaña a otro en su panel (caso de la media de volumen), va como serie extra del `case` que ya existe: `overlay` solo distingue "panel del precio" de "panel propio".
 
+- **Añadir un tema nuevo** son dos sitios: una entrada en `THEMES` (`theme/theme.service.ts`, con las 24 claves de la paleta del chart) y un bloque `:root[data-theme='<id>']` con los 17 tokens de UI (`styles.css`). El servicio empuja la paleta del chart a `--chart-*`, así que las píldoras de la leyenda se pintan solas con los colores exactos de las series. Cambiar de tema **recrea el chart entero**: los colores de serie se fijan al crearlas y se pierde el zoom.
+
 ## Pendiente de decidir
 
 - **Periodos configurables** (aparcado 2026-08-15): SMA 50/200 y MACD 12/26/9 están fijos. Hacerlos ajustables pide UI de configuración; se verá si hace falta de verdad.
 - **Indicadores aparcados** (2026-08-16): ATR(14) —riesgo: stop a 2×ATR y tamaño de posición—, EMA 20/50 y ADX/DMI(14). Recomendados al abrir F5 y descartados por ahora; el ATR es el que más aporta y el que pide panel nuevo. VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
+- **Tema Ámbar descartado** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
 - **Repo sin remoto** (2026-08-15): git init hecho, `gh repo create` + push pendientes; el código solo existe en local.
