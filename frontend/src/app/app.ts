@@ -23,6 +23,24 @@ const DEFAULT_SYMBOL = 'AAPL';
 /** Whether the indicator descriptions were left open. UI state, so it stays in the browser. */
 const SHOW_HINTS_KEY = 'tickerlab.showIndicatorHints';
 
+/** Which indicators were switched off. UI state, so it stays in the browser. */
+const HIDDEN_INDICATORS_KEY = 'tickerlab.hiddenIndicators';
+
+/**
+ * What is stored is the switched-off ones, not the visible ones: that way an indicator
+ * added in a later version shows up on its own instead of being absent from every list
+ * saved before it existed. Unparseable storage falls back to showing everything.
+ */
+function storedIndicators(): ReadonlySet<Indicator> {
+  const known = INDICATORS.map(({ value }) => value);
+  try {
+    const hidden: unknown = JSON.parse(localStorage.getItem(HIDDEN_INDICATORS_KEY) ?? '[]');
+    return new Set(known.filter((value) => !(hidden as Indicator[]).includes(value)));
+  } catch {
+    return new Set(known);
+  }
+}
+
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,10 +63,8 @@ export class App {
 
   protected readonly symbol = signal(DEFAULT_SYMBOL);
   protected readonly timeframe = signal<Timeframe>('DAY');
-  /** Everything on by default; the legend switches each one off. */
-  protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(
-    new Set(INDICATORS.map(({ value }) => value)),
-  );
+  /** Everything on for a first visit; after that, however the legend was left. */
+  protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(storedIndicators());
   /** Live periods, in memory only: a reload brings back the textbook defaults. */
   protected readonly periods = signal<IndicatorPeriods>(DEFAULT_PERIODS);
   /** Which pill has its period popover open, if any. */
@@ -83,6 +99,11 @@ export class App {
 
   constructor() {
     effect(() => localStorage.setItem(SHOW_HINTS_KEY, `${this.showHints()}`));
+    effect(() => {
+      const visible = this.visibleIndicators();
+      const hidden = INDICATORS.map(({ value }) => value).filter((value) => !visible.has(value));
+      localStorage.setItem(HIDDEN_INDICATORS_KEY, JSON.stringify(hidden));
+    });
     void this.load();
   }
 
