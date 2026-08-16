@@ -19,6 +19,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - [x] **F9 — EMA 20/50** (2026-08-16, probada en la app): las dos medias exponenciales como *overlay*, cada una con su píldora y su periodo editable (`exponentialMovingAverage` en `indicators/moving-average.ts`, semilla = SMA de las primeras `period` velas, así arrancan en la misma vela que su gemela simple). Van a 1 px frente a los 2 px de las SMA: con los dos pares encendidos, las exponenciales son el grupo rápido y las simples siguen siendo la referencia. Colores cian/rosa en Dark y azul/granate en Papel, lejos del ámbar y el violeta de las SMA.
 
+- [x] **F10 — Añadir a watchlist desde el screener** (2026-08-16, probada en la app): una columna `+` al final de cada fila abre un menú con las listas y un «+ Nueva lista» con caja inline, que crea y añade de una vez. Las listas que ya tienen el ticker salen con ✓: el `POST /entries` es idempotente, así que sin la marca un segundo clic no diría nada. Solo se tocó `screener-panel.component.ts` — el backend de F8 ya servía. El menú va `position: fixed` con las coordenadas del botón, no `absolute` dentro de la celda: `.table-wrap` tiene `overflow: auto` y recortaba el menú en las últimas filas.
+
 ## Notas
 
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
@@ -51,5 +53,4 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 - **Periodos entre sesiones** (2026-08-16): los periodos son editables pero viven en memoria. Persistirlos es una entrada más de `localStorage`; sin decidir si conviene o si el valor de manual es mejor punto de partida cada vez.
 - **Tema Ámbar descartado** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
 - **Sector e industria en el screener** (2026-08-16): los pedía F2 y se quedaron fuera — el `quote` no los trae y sacarlos de `quoteSummary` son 5.956 llamadas. Sin decidir si compensa (¿carga perezosa solo de lo que se ve? ¿otra fuente?).
-- **Añadir a watchlist desde el screener** (2026-08-16): hoy una fila solo lleva al gráfico, así que filtrar y guardar exige un rodeo. Propuesto y no hecho.
 - **Filtros del screener entre sesiones** (2026-08-16): el panel recuerda si quedó abierto (`tickerlab.screenerFiltersOpen`), pero los 17 desplegables y el orden vuelven a cero al recargar. Mismo dilema que los periodos de los indicadores.

@@ -10,12 +10,17 @@ import {
   filtersFrom,
 } from './screener.models';
 import { ScreenerService } from './screener.service';
+import { Watchlist } from '../watchlist/watchlist.models';
+import { WatchlistService } from '../watchlist/watchlist.service';
 
 /** Typing a ticker should not fire a request per keystroke. */
 const TYPING_PAUSE_MS = 250;
 
 /** How often the table asks again while a quote sweep is running. */
 const POLL_MS = 3000;
+
+/** Room the watchlist menu needs below its button before it has to slide up. */
+const MENU_HEIGHT = 260;
 
 /** Whether the filter panel was left open. UI state, so it stays in the browser. */
 const PANEL_OPEN_KEY = 'tickerlab.screenerFiltersOpen';
@@ -37,6 +42,9 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
 @Component({
   selector: 'app-screener-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Clicking anywhere else dismisses an open watchlist menu; the menu and its button stop
+  // the event before it gets here.
+  host: { '(document:click)': 'closeAdd()' },
   template: `
     <header class="filters">
       <input
@@ -114,7 +122,7 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
       <p class="notice error">{{ message }}</p>
     }
 
-    <div class="table-wrap">
+    <div class="table-wrap" (scroll)="closeAdd()">
       <table class="symbols">
         <thead>
           <tr>
@@ -131,6 +139,7 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
                 }
               </th>
             }
+            <th class="col-add"></th>
           </tr>
         </thead>
         <tbody>
@@ -158,10 +167,21 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
               >
                 {{ percent(row.change52w) }}
               </td>
+              <td class="col-add">
+                <button
+                  type="button"
+                  class="add"
+                  [class.open]="addTarget()?.row?.symbol === row.symbol"
+                  [title]="'Añadir ' + row.symbol + ' a una watchlist'"
+                  (click)="toggleAdd(row, $event)"
+                >
+                  +
+                </button>
+              </td>
             </tr>
           } @empty {
             <tr>
-              <td class="empty" [attr.colspan]="columns.length">
+              <td class="empty" [attr.colspan]="columns.length + 1">
                 @if (loading()) {
                   Cargando…
                 } @else if (filtered()) {
@@ -177,6 +197,51 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
         </tbody>
       </table>
     </div>
+
+    <!-- Anchored to the button but drawn outside the table, which clips what it scrolls. -->
+    @if (addTarget(); as target) {
+      <div
+        class="add-popover"
+        [style.top.px]="target.top"
+        [style.right.px]="target.right"
+        (click)="$event.stopPropagation()"
+      >
+        <p class="add-title">Añadir {{ target.row.symbol }} a</p>
+
+        @for (list of lists(); track list.id) {
+          <button type="button" class="add-option" (click)="addTo(list, target.row)">
+            <span class="add-name">{{ list.name }}</span>
+            @if (holds(list, target.row.symbol)) {
+              <span class="add-mark" title="Ya está en la lista">✓</span>
+            }
+          </button>
+        } @empty {
+          <p class="add-empty">{{ listsLoading() ? 'Cargando…' : 'Todavía no hay listas.' }}</p>
+        }
+
+        @if (newList()) {
+          <form
+            class="add-form"
+            (submit)="$event.preventDefault(); createAndAdd(box.value, target.row)"
+          >
+            <input
+              #box
+              type="text"
+              maxlength="60"
+              placeholder="Nombre de la lista"
+              autocomplete="off"
+              autofocus
+              (keydown.escape)="newList.set(false)"
+            />
+            <button type="submit" class="icon" title="Crear y añadir">✓</button>
+          </form>
+        } @else {
+          <button type="button" class="add-option new" (click)="newList.set(true)">
+            + Nueva lista
+          </button>
+        }
+      </div>
+    }
 
     <footer class="pager">
       <button type="button" [disabled]="page() === 0 || loading()" (click)="go(page() - 1)">‹ Anterior</button>
@@ -468,6 +533,131 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
       text-align: center;
     }
 
+    .col-add {
+      width: 2.4rem;
+      text-align: center;
+    }
+
+    .symbols thead th.col-add {
+      cursor: default;
+    }
+
+    .symbols thead th.col-add:hover {
+      color: var(--text-dim);
+    }
+
+    /* Dim until the row is under the cursor, so 50 plus signs do not shout. */
+    .add {
+      padding: 0 0.32rem;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: none;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      line-height: 1.25;
+      cursor: pointer;
+    }
+
+    .row:hover .add,
+    .add.open {
+      border-color: var(--border-control);
+      background: var(--bg-raised);
+      color: var(--accent);
+    }
+
+    .add-popover {
+      position: fixed;
+      z-index: 20;
+      display: grid;
+      width: 13rem;
+      gap: 0.1rem;
+      padding: 0.35rem;
+      border: 1px solid var(--border-control);
+      border-radius: 6px;
+      background: var(--bg-raised);
+      box-shadow: 0 6px 20px var(--shadow);
+    }
+
+    .add-title {
+      margin: 0;
+      padding: 0.2rem 0.4rem 0.35rem;
+      color: var(--text-dim);
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .add-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem;
+      padding: 0.35rem 0.4rem;
+      border: 0;
+      border-radius: 4px;
+      background: none;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .add-option:hover {
+      background: var(--accent-soft);
+      color: var(--text);
+    }
+
+    .add-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .add-mark {
+      color: var(--accent);
+    }
+
+    .add-option.new {
+      margin-top: 0.15rem;
+      border-top: 1px solid var(--border);
+      border-radius: 0 0 4px 4px;
+      color: var(--text-dim);
+    }
+
+    .add-empty {
+      margin: 0;
+      padding: 0.35rem 0.4rem;
+      color: var(--text-dim);
+      font-size: 0.74rem;
+    }
+
+    .add-form {
+      display: flex;
+      gap: 0.25rem;
+      margin-top: 0.15rem;
+      padding-top: 0.3rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .add-form input {
+      min-width: 0;
+      flex: 1;
+      padding: 0.25rem 0.4rem;
+      border: 1px solid var(--border-control);
+      border-radius: 4px;
+      background: var(--bg-panel);
+      color: var(--text);
+      font-size: 0.76rem;
+    }
+
+    .add-form .icon {
+      border: 0;
+      border-radius: 4px;
+      background: none;
+      color: var(--accent);
+      cursor: pointer;
+    }
+
     .pager {
       display: flex;
       align-items: center;
@@ -532,6 +722,15 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly notice = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
 
+  /** The row whose watchlist menu is open, and where to draw it over the table. */
+  protected readonly addTarget = signal<{ row: ScreenerSymbol; top: number; right: number } | null>(
+    null,
+  );
+  protected readonly lists = signal<Watchlist[]>([]);
+  protected readonly listsLoading = signal(false);
+  /** Whether the menu is showing its "new list" box instead of the link. */
+  protected readonly newList = signal(false);
+
   /** What the backend is being asked for right now. */
   protected readonly filters = computed(() =>
     filtersFrom(this.query(), this.exchange(), this.picks()),
@@ -552,6 +751,7 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly rangeTo = computed(() => Math.min(this.total(), (this.page() + 1) * PAGE_SIZE));
 
   private readonly service = inject(ScreenerService);
+  private readonly watchlists = inject(WatchlistService);
   /** Discards responses that arrive after the filter already moved on. */
   private requestId = 0;
   private typingTimer?: ReturnType<typeof setTimeout>;
@@ -576,6 +776,82 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected onExchange(value: string): void {
     this.exchange.set(value);
     this.go(0);
+  }
+
+  /**
+   * The menu hangs under its button in viewport coordinates, so the scrolling table cannot
+   * clip it; near the bottom edge it slides up instead of falling off the screen.
+   */
+  protected toggleAdd(row: ScreenerSymbol, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.addTarget()?.row.symbol === row.symbol) {
+      this.closeAdd();
+      return;
+    }
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.addTarget.set({
+      row,
+      top: Math.max(8, Math.min(box.bottom + 4, window.innerHeight - MENU_HEIGHT)),
+      right: Math.max(8, window.innerWidth - box.right),
+    });
+    this.newList.set(false);
+    void this.loadLists();
+  }
+
+  protected closeAdd(): void {
+    this.addTarget.set(null);
+    this.newList.set(false);
+  }
+
+  /** Whether the ticker is already saved, so a second click is not a silent no-op. */
+  protected holds(list: Watchlist, symbol: string): boolean {
+    return list.entries.some((entry) => entry.symbol === symbol);
+  }
+
+  protected async addTo(list: Watchlist, row: ScreenerSymbol): Promise<void> {
+    this.closeAdd();
+    await this.saving(() => this.watchlists.addEntry(list.id, row.symbol, row.name), row);
+  }
+
+  protected async createAndAdd(name: string, row: ScreenerSymbol): Promise<void> {
+    const clean = name.trim();
+    if (!clean) {
+      return;
+    }
+    this.closeAdd();
+    await this.saving(async () => {
+      const created = await this.watchlists.create(clean);
+      return this.watchlists.addEntry(created.id, row.symbol, row.name);
+    }, row);
+  }
+
+  /** Menus open rarely and lists are few, so it always asks: one may have been made elsewhere. */
+  private async loadLists(): Promise<void> {
+    this.listsLoading.set(true);
+    try {
+      this.lists.set(await this.watchlists.list());
+    } catch (failure) {
+      this.closeAdd();
+      this.error.set(this.messageOf(failure));
+    } finally {
+      this.listsLoading.set(false);
+    }
+  }
+
+  /** Every write answers with the whole list, so the ✓ marks stay true without asking again. */
+  private async saving(write: () => Promise<Watchlist>, row: ScreenerSymbol): Promise<void> {
+    this.error.set(null);
+    try {
+      const saved = await write();
+      this.lists.update((all) =>
+        all.some((one) => one.id === saved.id)
+          ? all.map((one) => (one.id === saved.id ? saved : one))
+          : [...all, saved],
+      );
+      this.notice.set(`${row.symbol} está en «${saved.name}».`);
+    } catch (failure) {
+      this.error.set(this.messageOf(failure));
+    }
   }
 
   protected selectsOf(group: FilterGroup) {
