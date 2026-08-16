@@ -11,7 +11,16 @@ export const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
  * Indicators the user can switch off. Candles are not one of them: without candles
  * there is no chart. Order here is the order the panes keep on screen.
  */
-export type Indicator = 'SMA50' | 'SMA200' | 'BOLLINGER' | 'VOLUME' | 'RSI' | 'MACD' | 'ATR';
+export type Indicator =
+  | 'SMA50'
+  | 'SMA200'
+  | 'EMA20'
+  | 'EMA50'
+  | 'BOLLINGER'
+  | 'VOLUME'
+  | 'RSI'
+  | 'MACD'
+  | 'ATR';
 
 /**
  * Every period the user can edit, flattened into one key space. An indicator owns one or
@@ -20,6 +29,8 @@ export type Indicator = 'SMA50' | 'SMA200' | 'BOLLINGER' | 'VOLUME' | 'RSI' | 'M
 export type PeriodKey =
   | 'smaFast'
   | 'smaSlow'
+  | 'emaFast'
+  | 'emaSlow'
   | 'bollinger'
   | 'bollingerDeviations'
   | 'volumeAverage'
@@ -67,6 +78,22 @@ export const INDICATORS: ReadonlyArray<{
     hint: 'Media larga: separa mercado alcista de bajista.',
     overlay: true,
     params: [{ key: 'smaSlow', label: 'Periodo', defaultValue: 200, min: 2, max: 400 }],
+  },
+  {
+    value: 'EMA20',
+    swatch: 'ema20',
+    label: 'EMA',
+    hint: 'Media que pesa lo reciente: gira antes que la SMA.',
+    overlay: true,
+    params: [{ key: 'emaFast', label: 'Periodo', defaultValue: 20, min: 2, max: 400 }],
+  },
+  {
+    value: 'EMA50',
+    swatch: 'ema50',
+    label: 'EMA',
+    hint: 'La misma media, más lenta: soporte en tendencia.',
+    overlay: true,
+    params: [{ key: 'emaSlow', label: 'Periodo', defaultValue: 50, min: 2, max: 400 }],
   },
   {
     value: 'BOLLINGER',

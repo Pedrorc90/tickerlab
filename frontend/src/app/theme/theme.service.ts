@@ -27,6 +27,8 @@ export interface ChartPalette {
   paneLabel: string;
   smaFast: string;
   smaSlow: string;
+  emaFast: string;
+  emaSlow: string;
   bollingerBand: string;
   bollingerBasis: string;
   macdLine: string;
@@ -67,6 +69,8 @@ export const THEMES: readonly Theme[] = [
       paneLabel: 'rgba(178, 181, 190, 0.55)',
       smaFast: '#f0b90b',
       smaSlow: '#a78bfa',
+      emaFast: '#38bdf8',
+      emaSlow: '#fb7185',
       bollingerBand: '#6f86c9',
       bollingerBasis: 'rgba(111, 134, 201, 0.55)',
       macdLine: '#4b8bff',
@@ -99,6 +103,8 @@ export const THEMES: readonly Theme[] = [
       paneLabel: 'rgba(106, 97, 82, 0.7)',
       smaFast: '#b8860b',
       smaSlow: '#6b4fa8',
+      emaFast: '#1d7fa8',
+      emaSlow: '#c04a5e',
       bollingerBand: '#4a6fa5',
       bollingerBasis: 'rgba(74, 111, 165, 0.5)',
       macdLine: '#2b5f9e',

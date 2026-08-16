@@ -30,7 +30,11 @@ import {
 import { averageTrueRange } from './indicators/atr';
 import { bollingerBands } from './indicators/bollinger';
 import { macd } from './indicators/macd';
-import { simpleMovingAverage, volumeMovingAverage } from './indicators/moving-average';
+import {
+  exponentialMovingAverage,
+  simpleMovingAverage,
+  volumeMovingAverage,
+} from './indicators/moving-average';
 import { RSI_OVERBOUGHT, RSI_OVERSOLD, relativeStrengthIndex } from './indicators/rsi';
 import {
   Candle,
@@ -56,6 +60,8 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
   // Overlays never get a pane of their own; these are here only to keep the record total.
   SMA50: 0,
   SMA200: 0,
+  EMA20: 0,
+  EMA50: 0,
   BOLLINGER: 0,
 };
 
@@ -310,6 +316,35 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
           setData: (candles) =>
             series.setData(
               simpleMovingAverage(candles, period).map((point) => ({
+                time: point.time as UTCTimestamp,
+                value: point.value,
+              })),
+            ),
+        };
+      }
+
+      case 'EMA20':
+      case 'EMA50': {
+        // A hair thinner than the SMAs: with both pairs on, the exponential ones are the
+        // fast-moving pack and the simple ones stay the reference.
+        const period = indicator === 'EMA20' ? periods.emaFast : periods.emaSlow;
+        const series = chart.addSeries(
+          LineSeries,
+          {
+            color: indicator === 'EMA20' ? COLORS.emaFast : COLORS.emaSlow,
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          },
+          PRICE_PANE,
+        );
+        return {
+          series: [series],
+          signature,
+          setData: (candles) =>
+            series.setData(
+              exponentialMovingAverage(candles, period).map((point) => ({
                 time: point.time as UTCTimestamp,
                 value: point.value,
               })),

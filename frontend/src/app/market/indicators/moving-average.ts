@@ -4,6 +4,10 @@ import { Candle, IndicatorPoint } from '../market.models';
 export const SMA_FAST = 50;
 export const SMA_SLOW = 200;
 
+/** The exponential pair: shorter on purpose, they are there to turn before the SMAs do. */
+export const EMA_FAST = 20;
+export const EMA_SLOW = 50;
+
 /** Simple moving average of the close: the trend line drawn over the candles. */
 export function simpleMovingAverage(candles: Candle[], period: number): IndicatorPoint[] {
   return rollingMean(candles, period, (candle) => candle.close);
@@ -15,6 +19,34 @@ export function simpleMovingAverage(candles: Candle[], period: number): Indicato
  */
 export function volumeMovingAverage(candles: Candle[], period: number): IndicatorPoint[] {
   return rollingMean(candles, period, (candle) => candle.volume);
+}
+
+/**
+ * Exponential moving average of the close: the same trend line, weighted towards the last
+ * bars, so it bends earlier than the simple one. Seeded with the simple average of the first
+ * `period` closes — the textbook seed, and it keeps the series starting on the same bar
+ * as its simple twin.
+ */
+export function exponentialMovingAverage(candles: Candle[], period: number): IndicatorPoint[] {
+  if (candles.length < period) {
+    return [];
+  }
+
+  const weight = 2 / (period + 1);
+  const points: IndicatorPoint[] = [];
+  let average = 0;
+
+  for (let i = 0; i < period; i++) {
+    average += candles[i].close / period;
+  }
+  points.push({ time: candles[period - 1].time, value: average });
+
+  for (let i = period; i < candles.length; i++) {
+    average = candles[i].close * weight + average * (1 - weight);
+    points.push({ time: candles[i].time, value: average });
+  }
+
+  return points;
 }
 
 /**

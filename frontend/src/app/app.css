@@ -339,6 +339,14 @@ app-price-chart {
   background: var(--chart-sma-slow);
 }
 
+.swatch.ema20 {
+  background: var(--chart-ema-fast);
+}
+
+.swatch.ema50 {
+  background: var(--chart-ema-slow);
+}
+
 .swatch.bollinger {
   background: linear-gradient(
     180deg,
