@@ -351,3 +351,7 @@ app-price-chart {
 .swatch.macd {
   background: linear-gradient(90deg, var(--chart-macd-line) 50%, var(--chart-macd-signal) 50%);
 }
+
+.swatch.atr {
+  background: var(--chart-atr-line);
+}

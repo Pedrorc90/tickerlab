@@ -33,6 +33,7 @@ export interface ChartPalette {
   macdSignal: string;
   macdHistUp: string;
   macdHistDown: string;
+  atrLine: string;
 }
 
 export interface Theme {
@@ -72,6 +73,7 @@ export const THEMES: readonly Theme[] = [
       macdSignal: '#ff9f43',
       macdHistUp: 'rgba(38, 166, 154, 0.55)',
       macdHistDown: 'rgba(239, 83, 80, 0.55)',
+      atrLine: '#f472b6',
     },
   },
   {
@@ -103,6 +105,7 @@ export const THEMES: readonly Theme[] = [
       macdSignal: '#c26a1a',
       macdHistUp: 'rgba(47, 125, 95, 0.5)',
       macdHistDown: 'rgba(179, 64, 47, 0.5)',
+      atrLine: '#a4487a',
     },
   },
 ];

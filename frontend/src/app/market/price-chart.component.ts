@@ -27,6 +27,7 @@ import {
   createChart,
   createTextWatermark,
 } from 'lightweight-charts';
+import { averageTrueRange } from './indicators/atr';
 import { bollingerBands } from './indicators/bollinger';
 import { macd } from './indicators/macd';
 import { simpleMovingAverage, volumeMovingAverage } from './indicators/moving-average';
@@ -51,6 +52,7 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
   VOLUME: 0.15,
   RSI: 0.27,
   MACD: 0.27,
+  ATR: 0.2,
   // Overlays never get a pane of their own; these are here only to keep the record total.
   SMA50: 0,
   SMA200: 0,
@@ -485,6 +487,29 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
               points.map((point) => ({ time: point.time as UTCTimestamp, value: point.signal })),
             );
           },
+        };
+      }
+
+      case 'ATR': {
+        // Unlike the RSI this one is measured in dollars, so the pane keeps its own
+        // autoscaled axis: a fixed range would flatten it on cheap stocks.
+        const series = chart.addSeries(
+          LineSeries,
+          { color: COLORS.atrLine, lineWidth: 2, priceLineVisible: false },
+          nextPane,
+        );
+
+        return {
+          series: [series],
+          signature,
+          label: this.labelPane(series, `ATR ${periods.atr}`),
+          setData: (candles) =>
+            series.setData(
+              averageTrueRange(candles, periods.atr).map((point) => ({
+                time: point.time as UTCTimestamp,
+                value: point.value,
+              })),
+            ),
         };
       }
     }

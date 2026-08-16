@@ -11,7 +11,7 @@ export const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
  * Indicators the user can switch off. Candles are not one of them: without candles
  * there is no chart. Order here is the order the panes keep on screen.
  */
-export type Indicator = 'SMA50' | 'SMA200' | 'BOLLINGER' | 'VOLUME' | 'RSI' | 'MACD';
+export type Indicator = 'SMA50' | 'SMA200' | 'BOLLINGER' | 'VOLUME' | 'RSI' | 'MACD' | 'ATR';
 
 /**
  * Every period the user can edit, flattened into one key space. An indicator owns one or
@@ -26,7 +26,8 @@ export type PeriodKey =
   | 'rsi'
   | 'macdFast'
   | 'macdSlow'
-  | 'macdSignal';
+  | 'macdSignal'
+  | 'atr';
 
 export type IndicatorPeriods = Readonly<Record<PeriodKey, number>>;
 
@@ -105,6 +106,14 @@ export const INDICATORS: ReadonlyArray<{
       { key: 'macdSlow', label: 'Lenta', defaultValue: 26, min: 3, max: 200 },
       { key: 'macdSignal', label: 'Señal', defaultValue: 9, min: 2, max: 100 },
     ],
+  },
+  {
+    value: 'ATR',
+    swatch: 'atr',
+    label: 'ATR',
+    hint: 'Recorrido típico de una vela: mide la volatilidad.',
+    overlay: false,
+    params: [{ key: 'atr', label: 'Periodo', defaultValue: 14, min: 2, max: 100 }],
   },
 ];
 
