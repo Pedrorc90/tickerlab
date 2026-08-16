@@ -13,6 +13,10 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - [x] **F6 — Temas y zoom inicial** (2026-08-16, probada en la app): selector de tema arriba a la derecha con Dark (defecto) y Papel, recordado en `localStorage`. El chart abre sobre el último séptimo del histórico en vez de sobre todo (`INITIAL_VISIBLE_FRACTION`, ajustado a ojo en la app): con cinco años en pantalla cada vela era un píxel.
 
+- [x] **F7 — ATR(14) y memoria de la leyenda** (2026-08-16, probada en la app): ATR en panel propio con suavizado de Wilder (`indicators/atr.ts`), el eje autoescalado y no fijo —está en dólares, un rango fijo lo aplana en valores baratos—. La leyenda recuerda qué indicadores quedaron apagados: lo que se guarda es el conjunto **apagado**, no el visible, para que un indicador añadido más tarde aparezca solo en vez de nacer oculto.
+
+- [x] **F8 — Watchlists y leyenda lateral** (2026-08-15/16, probada en la app, documentada a posteriori): listas de tickers con nombre a la derecha del chart, primera feature con persistencia — Postgres 16 en Docker (puerto 5433), Flyway dueño del esquema e Hibernate solo validando, igual que keepory. La pestaña abierta se recuerda en `localStorage`; las listas viven en la BD. La leyenda pasó de tira inferior a columna izquierda, con descripciones por indicador conmutables desde su cabecera, y los periodos (SMA, RSI, MACD) son editables desde cada píldora con un popover — en memoria, un recargado devuelve los de manual.
+
 ## Notas
 
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
@@ -27,11 +31,14 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - **Añadir un indicador nuevo** son tres sitios: una entrada en `INDICATORS` (`market.models.ts`, con su `overlay`), un `case` en `createPlot` (`price-chart.component.ts`) y el color de su píldora (`.swatch.<nombre>` en `app.css`, que hay que mantener igual al de la serie). El toggle de la leyenda y el reparto de alturas salen gratis. Si el indicador acompaña a otro en su panel (caso de la media de volumen), va como serie extra del `case` que ya existe: `overlay` solo distingue "panel del precio" de "panel propio".
 
+- **Repo en GitHub** (2026-08-16): `Pedrorc90/tickerlab` como `origin`. Antes solo existía en local.
+
+- **Estado del navegador**: cuatro claves de `localStorage`, todas con el prefijo `tickerlab.` — tema, pestaña de watchlist abierta, descripciones de indicadores abiertas e indicadores apagados. Lo que se persiste es siempre lo que se apartó de lo normal, no el estado entero.
+
 - **Añadir un tema nuevo** son dos sitios: una entrada en `THEMES` (`theme/theme.service.ts`, con las 24 claves de la paleta del chart) y un bloque `:root[data-theme='<id>']` con los 17 tokens de UI (`styles.css`). El servicio empuja la paleta del chart a `--chart-*`, así que las píldoras de la leyenda se pintan solas con los colores exactos de las series. Cambiar de tema **recrea el chart entero**: los colores de serie se fijan al crearlas y se pierde el zoom.
 
 ## Pendiente de decidir
 
-- **Periodos configurables** (aparcado 2026-08-15): SMA 50/200 y MACD 12/26/9 están fijos. Hacerlos ajustables pide UI de configuración; se verá si hace falta de verdad.
-- **Indicadores aparcados** (2026-08-16): ATR(14) —riesgo: stop a 2×ATR y tamaño de posición—, EMA 20/50 y ADX/DMI(14). Recomendados al abrir F5 y descartados por ahora; el ATR es el que más aporta y el que pide panel nuevo. VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
+- **Indicadores aparcados** (2026-08-16): EMA 20/50 y ADX/DMI(14), recomendados al abrir F5 y descartados por ahora. VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
+- **Periodos entre sesiones** (2026-08-16): los periodos son editables pero viven en memoria. Persistirlos es una entrada más de `localStorage`; sin decidir si conviene o si el valor de manual es mejor punto de partida cada vez.
 - **Tema Ámbar descartado** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
-- **Repo sin remoto** (2026-08-15): git init hecho, `gh repo create` + push pendientes; el código solo existe en local.
