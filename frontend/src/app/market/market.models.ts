@@ -20,7 +20,8 @@ export type Indicator =
   | 'VOLUME'
   | 'RSI'
   | 'MACD'
-  | 'ATR';
+  | 'ATR'
+  | 'ADX';
 
 /**
  * Every period the user can edit, flattened into one key space. An indicator owns one or
@@ -38,7 +39,8 @@ export type PeriodKey =
   | 'macdFast'
   | 'macdSlow'
   | 'macdSignal'
-  | 'atr';
+  | 'atr'
+  | 'adx';
 
 export type IndicatorPeriods = Readonly<Record<PeriodKey, number>>;
 
@@ -141,6 +143,14 @@ export const INDICATORS: ReadonlyArray<{
     hint: 'Recorrido típico de una vela: mide la volatilidad.',
     overlay: false,
     params: [{ key: 'atr', label: 'Periodo', defaultValue: 14, min: 2, max: 100 }],
+  },
+  {
+    value: 'ADX',
+    swatch: 'adx',
+    label: 'ADX',
+    hint: 'Fuerza de la tendencia, con quién manda: compra o venta.',
+    overlay: false,
+    params: [{ key: 'adx', label: 'Periodo', defaultValue: 14, min: 2, max: 100 }],
   },
 ];
 

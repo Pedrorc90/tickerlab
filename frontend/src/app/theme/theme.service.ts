@@ -36,6 +36,10 @@ export interface ChartPalette {
   macdHistUp: string;
   macdHistDown: string;
   atrLine: string;
+  adxLine: string;
+  adxPlusDi: string;
+  adxMinusDi: string;
+  adxTrendBand: string;
 }
 
 export interface Theme {
@@ -78,6 +82,11 @@ export const THEMES: readonly Theme[] = [
       macdHistUp: 'rgba(38, 166, 154, 0.55)',
       macdHistDown: 'rgba(239, 83, 80, 0.55)',
       atrLine: '#f472b6',
+      // Strength has no side, so the ADX is deliberately colourless next to its two DIs.
+      adxLine: '#c7cbd8',
+      adxPlusDi: '#4ade80',
+      adxMinusDi: '#f87171',
+      adxTrendBand: 'rgba(199, 203, 216, 0.45)',
     },
   },
   {
@@ -112,6 +121,10 @@ export const THEMES: readonly Theme[] = [
       macdHistUp: 'rgba(47, 125, 95, 0.5)',
       macdHistDown: 'rgba(179, 64, 47, 0.5)',
       atrLine: '#a4487a',
+      adxLine: '#5a5347',
+      adxPlusDi: '#2f7d5f',
+      adxMinusDi: '#b3402f',
+      adxTrendBand: 'rgba(90, 83, 71, 0.5)',
     },
   },
 ];

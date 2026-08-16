@@ -402,3 +402,12 @@ app-price-chart {
 .swatch.atr {
   background: var(--chart-atr-line);
 }
+
+.swatch.adx {
+  background: linear-gradient(
+    90deg,
+    var(--chart-adx-plus-di) 33%,
+    var(--chart-adx-line) 33% 66%,
+    var(--chart-adx-minus-di) 66%
+  );
+}

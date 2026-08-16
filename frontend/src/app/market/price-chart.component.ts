@@ -27,6 +27,7 @@ import {
   createChart,
   createTextWatermark,
 } from 'lightweight-charts';
+import { ADX_TREND_THRESHOLD, averageDirectionalIndex } from './indicators/adx';
 import { averageTrueRange } from './indicators/atr';
 import { bollingerBands } from './indicators/bollinger';
 import { macd } from './indicators/macd';
@@ -57,6 +58,7 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
   RSI: 0.27,
   MACD: 0.27,
   ATR: 0.2,
+  ADX: 0.22,
   // Overlays never get a pane of their own; these are here only to keep the record total.
   SMA50: 0,
   SMA200: 0,
@@ -545,6 +547,57 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
                 value: point.value,
               })),
             ),
+        };
+      }
+
+      case 'ADX': {
+        // The DIs go in first so the ADX, which is what the pane is named after, stays on top.
+        const plusDi = chart.addSeries(
+          LineSeries,
+          { color: COLORS.adxPlusDi, lineWidth: 1, priceLineVisible: false },
+          nextPane,
+        );
+        const minusDi = chart.addSeries(
+          LineSeries,
+          { color: COLORS.adxMinusDi, lineWidth: 1, priceLineVisible: false },
+          nextPane,
+        );
+        // All three are bounded by 0-100 but rarely climb past 60, so the axis is left to
+        // autoscale instead of being pinned like the RSI: fixing it flattens every line.
+        const adx = chart.addSeries(
+          LineSeries,
+          { color: COLORS.adxLine, lineWidth: 2, priceLineVisible: false },
+          nextPane,
+        );
+
+        adx.createPriceLine({
+          price: ADX_TREND_THRESHOLD,
+          color: COLORS.adxTrendBand,
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: '',
+        });
+
+        return {
+          series: [plusDi, minusDi, adx],
+          signature,
+          label: this.labelPane(plusDi, `ADX ${periods.adx}`),
+          setData: (candles) => {
+            const points = averageDirectionalIndex(candles, periods.adx);
+            plusDi.setData(
+              points.map((point) => ({ time: point.time as UTCTimestamp, value: point.plusDi })),
+            );
+            minusDi.setData(
+              points.map((point) => ({ time: point.time as UTCTimestamp, value: point.minusDi })),
+            );
+            // The ADX needs a second round of smoothing, so it starts later than the DIs.
+            adx.setData(
+              points
+                .filter((point) => point.adx !== null)
+                .map((point) => ({ time: point.time as UTCTimestamp, value: point.adx as number })),
+            );
+          },
         };
       }
     }
