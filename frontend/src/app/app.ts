@@ -14,8 +14,12 @@ import {
 } from './market/market.models';
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
+import { ScreenerPanelComponent } from './screener/screener-panel.component';
 import { ThemePickerComponent } from './theme/theme-picker.component';
 import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
+
+/** The two screens the app has. */
+type View = 'chart' | 'screener';
 
 /** Something recognisable has to be on screen before the user types anything. */
 const DEFAULT_SYMBOL = 'AAPL';
@@ -47,6 +51,7 @@ function storedIndicators(): ReadonlySet<Indicator> {
   imports: [
     TickerSearchComponent,
     PriceChartComponent,
+    ScreenerPanelComponent,
     WatchlistPanelComponent,
     ThemePickerComponent,
     DecimalPipe,
@@ -63,6 +68,8 @@ export class App {
 
   protected readonly symbol = signal(DEFAULT_SYMBOL);
   protected readonly timeframe = signal<Timeframe>('DAY');
+  /** Which screen is up. Not stored: a session always opens on the chart. */
+  protected readonly view = signal<View>('chart');
   /** Everything on for a first visit; after that, however the legend was left. */
   protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(storedIndicators());
   /** Live periods, in memory only: a reload brings back the textbook defaults. */
@@ -110,6 +117,16 @@ export class App {
   protected onSymbolSelected(symbol: string): void {
     this.symbol.set(symbol);
     void this.load();
+  }
+
+  /** Picking a row in the screener is a request to see that ticker, so the chart comes back. */
+  protected onScreenerSelected(symbol: string): void {
+    this.view.set('chart');
+    this.onSymbolSelected(symbol);
+  }
+
+  protected showView(view: View): void {
+    this.view.set(view);
   }
 
   protected toggleIndicator(indicator: Indicator): void {

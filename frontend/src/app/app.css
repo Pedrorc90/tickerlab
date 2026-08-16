@@ -66,6 +66,45 @@ app-ticker-search {
   color: var(--on-accent);
 }
 
+/* Screen switch. Sits right of the timeframes, so it keeps its own auto margin for the
+   screener view, where the timeframes are not on screen. */
+.views {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+  padding: 0.2rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.view {
+  padding: 0.35rem 0.85rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.view:hover {
+  color: var(--text);
+}
+
+.view.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* The screener is the only child under the topbar, so it takes the two remaining rows
+   of the host grid instead of being squeezed into the quotebar's auto row. */
+app-screener-panel {
+  grid-row: 2 / -1;
+  min-height: 0;
+}
+
 .quotebar {
   display: flex;
   align-items: baseline;

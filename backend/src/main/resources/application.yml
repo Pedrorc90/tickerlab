@@ -18,6 +18,8 @@ spring:
 tickerlab:
   yahoo:
     base-url: https://query1.finance.yahoo.com
+  nasdaq-trader:
+    base-url: https://www.nasdaqtrader.com
 
 logging:
   level:

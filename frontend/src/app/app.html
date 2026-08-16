@@ -4,23 +4,48 @@
     <span class="brand-name">TickerLab</span>
   </div>
 
-  <app-ticker-search (selected)="onSymbolSelected($event)" />
+  @if (view() === 'chart') {
+    <app-ticker-search (selected)="onSymbolSelected($event)" />
 
-  <div class="timeframes" role="group" aria-label="Temporalidad">
-    @for (option of timeframes; track option.value) {
-      <button
-        type="button"
-        class="timeframe"
-        [class.active]="timeframe() === option.value"
-        (click)="onTimeframeSelected(option.value)"
-      >
-        {{ option.label }}
-      </button>
-    }
+    <div class="timeframes" role="group" aria-label="Temporalidad">
+      @for (option of timeframes; track option.value) {
+        <button
+          type="button"
+          class="timeframe"
+          [class.active]="timeframe() === option.value"
+          (click)="onTimeframeSelected(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  }
+
+  <div class="views" role="group" aria-label="Pantalla">
+    <button
+      type="button"
+      class="view"
+      [class.active]="view() === 'chart'"
+      (click)="showView('chart')"
+    >
+      Gráfico
+    </button>
+    <button
+      type="button"
+      class="view"
+      [class.active]="view() === 'screener'"
+      (click)="showView('screener')"
+    >
+      Screener
+    </button>
   </div>
 
   <app-theme-picker />
 </header>
+
+@if (view() === 'screener') {
+  <app-screener-panel (selected)="onScreenerSelected($event)" />
+} @else {
 
 <section class="quotebar">
   @if (series(); as data) {
@@ -136,3 +161,5 @@
     (selected)="onSymbolSelected($event)"
   />
 </div>
+
+}
