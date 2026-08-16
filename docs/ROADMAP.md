@@ -17,6 +17,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - [x] **F8 — Watchlists y leyenda lateral** (2026-08-15/16, probada en la app, documentada a posteriori): listas de tickers con nombre a la derecha del chart, primera feature con persistencia — Postgres 16 en Docker (puerto 5433), Flyway dueño del esquema e Hibernate solo validando, igual que keepory. La pestaña abierta se recuerda en `localStorage`; las listas viven en la BD. La leyenda pasó de tira inferior a columna izquierda, con descripciones por indicador conmutables desde su cabecera, y los periodos (SMA, RSI, MACD) son editables desde cada píldora con un popover — en memoria, un recargado devuelve los de manual.
 
+- [x] **F9 — EMA 20/50** (2026-08-16, probada en la app): las dos medias exponenciales como *overlay*, cada una con su píldora y su periodo editable (`exponentialMovingAverage` en `indicators/moving-average.ts`, semilla = SMA de las primeras `period` velas, así arrancan en la misma vela que su gemela simple). Van a 1 px frente a los 2 px de las SMA: con los dos pares encendidos, las exponenciales son el grupo rápido y las simples siguen siendo la referencia. Colores cian/rosa en Dark y azul/granate en Papel, lejos del ámbar y el violeta de las SMA.
+
 ## Notas
 
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
@@ -39,6 +41,6 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 ## Pendiente de decidir
 
-- **Indicadores aparcados** (2026-08-16): EMA 20/50 y ADX/DMI(14), recomendados al abrir F5 y descartados por ahora. VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
+- **Indicadores aparcados** (2026-08-16): ADX/DMI(14), recomendado al abrir F5 y sin hacer todavía (las EMA salieron de esta misma lista en F9). VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
 - **Periodos entre sesiones** (2026-08-16): los periodos son editables pero viven en memoria. Persistirlos es una entrada más de `localStorage`; sin decidir si conviene o si el valor de manual es mejor punto de partida cada vez.
 - **Tema Ámbar descartado** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
