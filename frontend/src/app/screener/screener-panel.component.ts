@@ -253,6 +253,10 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
   `,
   styles: `
     :host {
+      /* The table is a block of its own, not the whole viewport: capped in width, as tall
+         as its PAGE_SIZE rows, and the space left over stays empty. */
+      --table-max-width: 1400px;
+
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -417,9 +421,17 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
       color: var(--chart-down);
     }
 
+    /* No max-height and no flex: 1 — the block is exactly as tall as the PAGE_SIZE rows it
+       holds, so nothing scrolls. Shrinking (0 1 auto) only kicks in on a window too short
+       for a full page, and that is the one case the scrollbar is allowed to appear. */
     .table-wrap {
-      flex: 1;
+      flex: 0 1 auto;
       min-height: 0;
+      width: 100%;
+      max-width: var(--table-max-width);
+      margin: 1rem auto 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
       overflow: auto;
     }
 
@@ -429,7 +441,7 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
       font-size: 0.8rem;
     }
 
-    /* The header stays put while the 50 rows scroll under it. */
+    /* Sticky only matters on a window too short for a full page; normally nothing scrolls. */
     .symbols thead th {
       position: sticky;
       top: 0;
@@ -468,8 +480,10 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
       background: var(--bg-raised);
     }
 
+    /* 0.25rem, not 0.35rem: at 33px a row the 25 of a page overflow a 1080p window and the
+       scrollbar comes back. This is the padding that makes a full page fit without one. */
     .row td {
-      padding: 0.35rem 0.9rem;
+      padding: 0.25rem 0.9rem;
       border-bottom: 1px solid var(--border);
       color: var(--text-secondary);
     }
@@ -658,14 +672,17 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
       cursor: pointer;
     }
 
+    /* Sits right under the table and shares its width — a full-bleed bar with a top
+       border would read as the page footer instead of as the table's own pager. */
     .pager {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 0.8rem;
+      width: 100%;
+      max-width: var(--table-max-width);
+      margin: 0 auto;
       padding: 0.5rem;
-      border-top: 1px solid var(--border);
-      background: var(--bg-panel);
     }
 
     .pager button {

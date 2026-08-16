@@ -50,7 +50,8 @@ export interface RefreshResult {
   readonly refreshedAt: string;
 }
 
-export const PAGE_SIZE = 50;
+/** A page is what fits on screen at once: the table shows every row it gets, without scrolling. */
+export const PAGE_SIZE = 25;
 
 /** Every bound the backend accepts. Null is "no filter" on every one of them. */
 export interface Filters {
