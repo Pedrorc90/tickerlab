@@ -107,8 +107,9 @@ public class QuoteRefresher {
             pause();
         }
         int ranked = rank();
-        log.info("Quote sweep finished: {} of {} symbols quoted, {} ratings moved, in {} ms",
-                quoted, universe.size(), ranked, System.currentTimeMillis() - start);
+        int scored = score();
+        log.info("Quote sweep finished: {} of {} symbols quoted, {} ratings and {} scores moved, in {} ms",
+                quoted, universe.size(), ranked, scored, System.currentTimeMillis() - start);
     }
 
     /**
@@ -118,6 +119,16 @@ public class QuoteRefresher {
      */
     private int rank() {
         Integer moved = transactions.execute(status -> repository.rankRelativeStrength());
+        return moved == null ? 0 : moved;
+    }
+
+    /**
+     * Right after the ranking and never before it: the rating it just wrote is half of what the
+     * score reads, so running these two the other way round would blend today's distance to the
+     * high with yesterday's strength.
+     */
+    private int score() {
+        Integer moved = transactions.execute(status -> repository.scoreStrength());
         return moved == null ? 0 : moved;
     }
 

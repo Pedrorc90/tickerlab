@@ -21,6 +21,12 @@ public record ScreenerFilters(String query,
                               BigDecimal maxPer,
                               BigDecimal maxPriceToBook,
                               BigDecimal minDividendYield,
+                              /**
+                               * Ceiling on the yield, and the one bound a null passes: a company
+                               * that pays nothing arrives without the field, not with a zero.
+                               * Set to 0 it means "sin dividendo".
+                               */
+                              BigDecimal maxDividendYield,
                               BigDecimal minChange52w,
                               /** "Within X % of the 52-week high" is a floor on a negative number. */
                               BigDecimal minFromHigh52w,
@@ -38,6 +44,12 @@ public record ScreenerFilters(String query,
                               BigDecimal maxAnalystRating,
                               /** Relative strength floor, 1-99. An 80 keeps the top fifth of the market. */
                               Integer minRsRating,
+                              /**
+                               * Floor on the blended score, 1-99. Overlaps with the strength floor
+                               * above on purpose: this one also asks the stock to be near its high
+                               * and above its 200-day, so the same 80 is a stricter 80.
+                               */
+                              Integer minScore,
                               /**
                                * Today's volume as a multiple of the three-month average: 1.5 asks for half
                                * again the usual interest. A ratio and not a count, so it says the same thing

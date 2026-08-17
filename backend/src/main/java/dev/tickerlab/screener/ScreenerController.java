@@ -39,6 +39,7 @@ public class ScreenerController {
             @RequestParam(required = false) BigDecimal maxPer,
             @RequestParam(required = false) BigDecimal maxPriceToBook,
             @RequestParam(required = false) BigDecimal minDividendYield,
+            @RequestParam(required = false) BigDecimal maxDividendYield,
             @RequestParam(required = false) BigDecimal minChange52w,
             @RequestParam(required = false) BigDecimal minFromHigh52w,
             @RequestParam(required = false) BigDecimal minVsSma50,
@@ -53,6 +54,7 @@ public class ScreenerController {
             @RequestParam(required = false) BigDecimal minEps,
             @RequestParam(required = false) BigDecimal maxAnalystRating,
             @RequestParam(required = false) Integer minRsRating,
+            @RequestParam(required = false) Integer minScore,
             @RequestParam(required = false) BigDecimal minRelVolume,
             @RequestParam(required = false) BigDecimal maxRelVolume,
             @RequestParam(defaultValue = "0") int page,
@@ -60,10 +62,11 @@ public class ScreenerController {
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "false") boolean desc) {
         ScreenerFilters filters = new ScreenerFilters(q, exchange, minMarketCap, minPrice, maxPrice, minVolume,
-                minChange, maxChange, minPer, maxPer, maxPriceToBook, minDividendYield, minChange52w,
+                minChange, maxChange, minPer, maxPer, maxPriceToBook, minDividendYield,
+                maxDividendYield, minChange52w,
                 minFromHigh52w, minVsSma50, maxVsSma50, minVsSma200, maxVsSma200, maxFromLow52w,
                 minAvgVolume3m, minSharesOutstanding, minForwardPer, maxForwardPer, minEps, maxAnalystRating,
-                minRsRating, minRelVolume, maxRelVolume);
+                minRsRating, minScore, minRelVolume, maxRelVolume);
         return service.search(filters, page, size, sort, desc);
     }
 

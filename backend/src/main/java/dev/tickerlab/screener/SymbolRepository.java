@@ -66,4 +66,47 @@ public interface SymbolRepository extends JpaRepository<Symbol, String>, JpaSpec
               AND s.rs_rating IS DISTINCT FROM ranked.rating
             """, nativeQuery = true)
     int rankRelativeStrength();
+
+    /**
+     * Blends three of the metrics already on the table into a single 1-99 reading of how the
+     * ticker stands as a trade: relative strength at half the weight, distance to the yearly
+     * high at 30% and the 200-day trend at 20%. Nothing new is measured — the point is that
+     * one column answers what three dropdowns used to, so the table can be <em>ordered</em> by
+     * it, which is what the three of them together could never do.
+     *
+     * <p>The weights are the reason each term is there and not a tuning: strength says who the
+     * market is buying, the distance to the high says whether it is being bought right now, and
+     * the 200-day says the move has a trend under it rather than being a bounce inside a
+     * downtrend. The last one is the smallest because it is the slowest — it disqualifies more
+     * than it ranks.
+     *
+     * <p>Same shape as {@link #rankRelativeStrength}: percentiles blended and then re-ranked, so
+     * a score of 80 means a stock ahead of four out of five, not merely a high-ish sum. Must run
+     * <em>after</em> the ranking, since {@code rs_rating} is one of its inputs. A ticker missing
+     * any of the three scores null instead of being scored on the two it has: a missing
+     * {@code vs_sma_200} is a recent listing, and letting it through would rank it as if flat.
+     *
+     * @return how many scores actually changed
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE symbol s
+            SET score = scored.value
+            FROM (SELECT u.symbol, r.value
+                  FROM symbol u
+                  LEFT JOIN (SELECT blended.symbol,
+                                    CAST(1 + FLOOR(98 * PERCENT_RANK() OVER (ORDER BY blended.raw))
+                                         AS integer) AS value
+                             FROM (SELECT symbol,
+                                          0.5 * PERCENT_RANK() OVER (ORDER BY rs_rating)
+                                        + 0.3 * PERCENT_RANK() OVER (ORDER BY from_high_52w)
+                                        + 0.2 * PERCENT_RANK() OVER (ORDER BY vs_sma_200) AS raw
+                                   FROM symbol
+                                   WHERE rs_rating IS NOT NULL
+                                     AND from_high_52w IS NOT NULL
+                                     AND vs_sma_200 IS NOT NULL) blended) r ON r.symbol = u.symbol) scored
+            WHERE s.symbol = scored.symbol
+              AND s.score IS DISTINCT FROM scored.value
+            """, nativeQuery = true)
+    int scoreStrength();
 }

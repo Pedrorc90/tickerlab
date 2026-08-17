@@ -32,6 +32,12 @@ export interface ScreenerSymbol {
    * quoted but computed, so it moves whenever the universe is re-swept.
    */
   readonly rsRating: number | null;
+  /**
+   * The same 1-99 scale as `rsRating`, and computed in the same sweep, but reading three things
+   * instead of one: strength at half the weight, distance to the yearly high at 30 % and the
+   * 200-day trend at 20 %. Null while any of the three is missing.
+   */
+  readonly score: number | null;
 }
 
 /** Every column the backend accepts an order by. */
@@ -46,6 +52,11 @@ export interface ScreenerPage {
   /** A quote sweep is under way: the numbers are about to change on their own. */
   readonly refreshing: boolean;
   readonly quotedAt: string | null;
+  /**
+   * The best-scoring tickers of the whole filtered set, worked out on the server: the page in
+   * front of you is twenty-five rows of it, so the browser cannot tell which of them lead.
+   */
+  readonly top: string[];
 }
 
 export interface RefreshResult {
@@ -126,6 +137,8 @@ export interface Filters {
   maxPer: number | null;
   maxPriceToBook: number | null;
   minDividendYield: number | null;
+  /** Ceiling on the yield, and the only bound a null passes: see `atMostOrUnknown` on the server. */
+  maxDividendYield: number | null;
   minChange52w: number | null;
   minFromHigh52w: number | null;
   minVsSma50: number | null;
@@ -140,6 +153,8 @@ export interface Filters {
   minEps: number | null;
   maxAnalystRating: number | null;
   minRsRating: number | null;
+  /** Floor on the blended score, 1-99. Stricter than the strength floor at the same number. */
+  minScore: number | null;
   /** Today's volume as a multiple of the three-month average: 1.5 is half again the usual. */
   minRelVolume: number | null;
   /** The same ratio from above: 0.7 is a stock trading quietly, the way a base does. */
@@ -205,6 +220,8 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
       { label: 'Cualquiera' },
       { label: 'Menos de 5 $', max: 5 },
       { label: 'Menos de 20 $', max: 20 },
+      // The institutional floor the scan asks for: below it a listing is not what a fund buys.
+      { label: 'Más de 9 $', min: 9 },
       { label: 'Más de 20 $', min: 20 },
       { label: 'Más de 50 $', min: 50 },
       { label: 'Más de 200 $', min: 200 },
@@ -278,12 +295,17 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
     label: 'Dividendo',
     group: 'Fundamental',
     minKey: 'minDividendYield',
+    maxKey: 'maxDividendYield',
     options: [
       { label: 'Cualquiera' },
       { label: 'Reparte algo (> 0 %)', min: 0.0001 },
       { label: '2 % o más', min: 2 },
       { label: '4 % o más', min: 4 },
       { label: '6 % o más', min: 6 },
+      // Last and not next to «Cualquiera», the same way the Hoy dropdown lists every «Sube»
+      // before the first «Baja»: it is the other direction of the field, not a looser tier.
+      // A zero and not a negative bound — the server reads it as "no yield or none reported".
+      { label: 'Sin dividendo', max: 0 },
     ],
   },
   {
@@ -322,6 +344,20 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
       { label: 'Compra fuerte', max: 1.5 },
       { label: 'Compra o mejor', max: 2.5 },
       { label: 'Mantener o mejor', max: 3 },
+    ],
+  },
+  {
+    // Ahead of RS because it contains it: the score is strength plus the two things you would
+    // reach for the next two dropdowns to add. Whoever wants the raw rating still has it below.
+    id: 'score',
+    label: 'Score',
+    group: 'Técnico',
+    minKey: 'minScore',
+    options: [
+      { label: 'Cualquiera' },
+      { label: 'Score 70+', min: 70 },
+      { label: 'Score 80+ (fuerte)', min: 80 },
+      { label: 'Score 90+ (top 10 %)', min: 90 },
     ],
   },
   {
@@ -397,6 +433,7 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
       { label: 'Cualquiera' },
       { label: 'A menos del 5 %', min: -5 },
       { label: 'A menos del 10 %', min: -10 },
+      { label: 'A menos del 20 %', min: -20 },
       { label: 'A menos del 25 %', min: -25 },
     ],
   },
@@ -459,10 +496,13 @@ export interface Preset {
 }
 
 /**
- * Three screens rather than one, because they contradict each other on purpose: pinned to the
+ * Several screens rather than one, because they contradict each other on purpose: pinned to the
  * 50-day on dry volume is a base still forming, and the same ticker on 1.5× volume is that
  * base breaking. Asked for together they return nothing, and a single "va a subir" filter is
  * exactly the thing that cannot exist.
+ *
+ * <p>The first three are setups — where a chart is right now. The fourth is a universe: it says
+ * which companies are worth looking at at all, and expects one of the other three after it.
  */
 export const PRESETS: readonly Preset[] = [
   {
@@ -503,6 +543,20 @@ export const PRESETS: readonly Preset[] = [
       avgVolume3m: '1 M+ de media',
     },
   },
+  {
+    // The fourth is somebody else's screen, kept as they wrote it: mid-cap and up, priced
+    // where funds buy, paying nothing, liquid and still near its high. Two of their seven
+    // bounds are missing here and are not faked — see the hint.
+    name: 'Crecimiento US',
+    hint: 'El escaneo de Visionarios Bolsa, con lo que se puede medir: sin las dos patas de crecimiento (ventas y BPA previsto), que necesitan un dato que Yahoo no da por lote.',
+    picks: {
+      marketCap: 'Mediana (2.000 M+)',
+      price: 'Más de 9 $',
+      dividendYield: 'Sin dividendo',
+      avgVolume3m: '200 K+ de media',
+      fromHigh52w: 'A menos del 20 %',
+    },
+  },
 ];
 
 /** Where a preset leaves every dropdown. A label that matches nothing is left unfiltered. */
@@ -537,6 +591,7 @@ export function filtersFrom(
     maxPer: null,
     maxPriceToBook: null,
     minDividendYield: null,
+    maxDividendYield: null,
     minChange52w: null,
     minFromHigh52w: null,
     minVsSma50: null,
@@ -551,6 +606,7 @@ export function filtersFrom(
     minEps: null,
     maxAnalystRating: null,
     minRsRating: null,
+    minScore: null,
     minRelVolume: null,
     maxRelVolume: null,
   };

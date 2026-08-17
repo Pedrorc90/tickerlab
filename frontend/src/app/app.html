@@ -62,6 +62,7 @@
   <app-screener-panel
     [selectedSymbol]="selectedRow()?.symbol ?? null"
     (selected)="onScreenerSelected($event)"
+    (refreshed)="onRowRefreshed($event)"
   >
   <!-- Every number here rode in with the table's own page: picking a row costs one candles
        request and nothing else. -->

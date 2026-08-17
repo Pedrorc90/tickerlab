@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,9 +36,15 @@ public class ScreenerService {
             "symbol", "name", "exchange", "price", "changePercent", "volume", "marketCap",
             "per", "priceToBook", "dividendYield", "change52w", "fromHigh52w", "vsSma50", "vsSma200",
             "fromLow52w", "avgVolume3m", "sharesOutstanding", "forwardPer", "eps", "analystRating",
-            "rsRating");
+            "rsRating", "score");
 
     private static final String DEFAULT_SORT = "symbol";
+
+    /**
+     * How many tickers come back starred. Five because the star is a shortlist to open one by
+     * one, and a shortlist you have to page through is a second table, not a shortlist.
+     */
+    private static final int TOP_SIZE = 5;
 
     private final SymbolRepository repository;
     private final NasdaqTraderClient client;
@@ -59,8 +66,9 @@ public class ScreenerService {
         refresher.triggerIfStale();
         int safeSize = Math.clamp(size, 1, MAX_PAGE_SIZE);
         int safePage = Math.max(page, 0);
+        Specification<Symbol> matching = SymbolSpecs.matching(filters);
         Page<Symbol> found = repository.findAll(
-                SymbolSpecs.matching(filters),
+                matching,
                 PageRequest.of(safePage, safeSize, sortBy(sort, descending)));
         return new ScreenerPage(
                 found.getContent().stream().map(SymbolResponse::from).toList(),
@@ -68,7 +76,27 @@ public class ScreenerService {
                 safePage,
                 safeSize,
                 refresher.isRunning(),
-                refresher.lastQuotedAt());
+                refresher.lastQuotedAt(),
+                top(matching));
+    }
+
+    /**
+     * The best of the filtered set, worked out on the server because the browser only ever holds
+     * one page of it. A second query rather than a flag on the row: which tickers are top depends
+     * on what the filter left standing, so it cannot be stored — narrowing the filter promotes
+     * whatever was second.
+     *
+     * <p>Unscored rows are excluded rather than sorted last: with an empty table or before the
+     * first sweep, {@code NULLS_LAST} still returns five rows, and they would come back starred
+     * as the best of a filter nobody has scored yet.
+     */
+    private List<String> top(Specification<Symbol> matching) {
+        Specification<Symbol> scored = matching.and(
+                (root, query, builder) -> builder.isNotNull(root.get("score")));
+        return repository.findAll(scored, PageRequest.of(0, TOP_SIZE, sortBy("score", true)))
+                .getContent().stream()
+                .map(Symbol::getSymbol)
+                .toList();
     }
 
     /**

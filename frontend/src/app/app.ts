@@ -47,6 +47,25 @@ function storedChartType(): ChartType {
   return CHART_TYPES.find(({ value }) => value === saved)?.value ?? 'CANDLES';
 }
 
+/** Which row the screener detail was left on. UI state, so it stays in the browser. */
+const SELECTED_ROW_KEY = 'tickerlab.screenerRow';
+
+/**
+ * The whole row goes in, not the ticker: every number the detail shows rode in with a page a
+ * new session has not asked for yet, and there is no endpoint for one symbol on its own. Only
+ * the identity is checked on the way back — the rest is nullable by definition, and the table
+ * overwrites it the moment its first page comes back with the ticker still in it.
+ */
+function storedRow(): ScreenerSymbol | null {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(SELECTED_ROW_KEY) ?? 'null');
+    const row = saved as ScreenerSymbol | null;
+    return row && typeof row.symbol === 'string' && typeof row.name === 'string' ? row : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Which indicators were switched off. UI state, so it stays in the browser. */
 const HIDDEN_INDICATORS_KEY = 'tickerlab.hiddenIndicators';
 
@@ -119,7 +138,15 @@ export class App {
   protected readonly ratio = formatRatio;
   protected readonly compact = formatCompact;
 
-  protected readonly symbol = signal(DEFAULT_SYMBOL);
+  /** The screener selection as the last session left it. Read once, before the ticker uses it. */
+  private readonly restoredRow = storedRow();
+
+  /**
+   * A remembered selection brings the ticker with it: the symbol is one signal for both
+   * screens, so opening the chart on the default and the detail on the stored row would draw
+   * one ticker's candles under another one's header.
+   */
+  protected readonly symbol = signal(this.restoredRow?.symbol ?? DEFAULT_SYMBOL);
   /**
    * Written from two places — the chart's top bar and the screener detail's header — on
    * purpose: one selector each would let the two screens disagree, and then reading a chart
@@ -142,7 +169,7 @@ export class App {
    * stands alone. Kept as the whole row, not the ticker: every number the detail shows came
    * with the page the table already loaded, so it costs no extra request.
    */
-  protected readonly selectedRow = signal<ScreenerSymbol | null>(null);
+  protected readonly selectedRow = signal<ScreenerSymbol | null>(this.restoredRow);
   /** Descriptions under each pill. On the first visit they are shown; after that, as left. */
   protected readonly showHints = signal(localStorage.getItem(SHOW_HINTS_KEY) !== 'false');
   protected readonly series = signal<CandleSeries | null>(null);
@@ -178,6 +205,16 @@ export class App {
   constructor() {
     effect(() => localStorage.setItem(SHOW_HINTS_KEY, `${this.showHints()}`));
     effect(() => localStorage.setItem(CHART_TYPE_KEY, this.chartType()));
+    // Closing the detail clears the key rather than storing a null: no selection is the
+    // state a first visit is already in, and that one reads storage as absent.
+    effect(() => {
+      const row = this.selectedRow();
+      if (row) {
+        localStorage.setItem(SELECTED_ROW_KEY, JSON.stringify(row));
+      } else {
+        localStorage.removeItem(SELECTED_ROW_KEY);
+      }
+    });
     effect(() => {
       const visible = this.visibleIndicators();
       const hidden = INDICATORS.map(({ value }) => value).filter((value) => !visible.has(value));
@@ -218,6 +255,15 @@ export class App {
     }
     this.selectedRow.set(row);
     this.onSymbolSelected(row.symbol);
+  }
+
+  /**
+   * A restored row carries the prices of the session that stored it, while the list beside it
+   * is already on today's, so the panel hands the row back the moment a page arrives with the
+   * ticker still in it. The ticker cannot change here, which is why nothing is reloaded.
+   */
+  protected onRowRefreshed(row: ScreenerSymbol): void {
+    this.selectedRow.set(row);
   }
 
   protected showView(view: View): void {

@@ -99,6 +99,15 @@ public class Symbol {
     @Column(name = "rs_rating")
     private Integer rsRating;
 
+    /**
+     * How the ticker stands as a trade rather than as a business, 1 to 99: relative strength,
+     * how close it is to its yearly high and where it sits against its 200-day average, blended
+     * and re-ranked. Computed alongside {@link #rsRating} and by the same statement family, so
+     * it is likewise absent from {@link #quote}.
+     */
+    @Column(name = "score")
+    private Integer score;
+
     /** When the quote above was read. What decides whether the universe needs a sweep. */
     @Column(name = "quoted_at")
     private OffsetDateTime quotedAt;
@@ -199,6 +208,10 @@ public class Symbol {
 
     public Integer getRsRating() {
         return rsRating;
+    }
+
+    public Integer getScore() {
+        return score;
     }
 
     public OffsetDateTime getQuotedAt() {

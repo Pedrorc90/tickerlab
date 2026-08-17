@@ -88,6 +88,9 @@ const COLUMNS: readonly Column[] = [
   { field: 'per', label: 'PER', numeric: true },
   { field: 'eps', label: 'BPA', numeric: true },
   { field: 'change52w', label: '52 sem.', numeric: true },
+  // Ahead of RS, which it contains: reading them the other way round invites summing two
+  // numbers that already share half their inputs.
+  { field: 'score', label: 'Score', numeric: true },
   { field: 'rsRating', label: 'RS', numeric: true },
 ];
 
@@ -291,6 +294,9 @@ function storedView(): StoredView {
             [title]="'Ver el detalle de ' + row.symbol"
           >
             <div class="line-top">
+              @if (top().has(row.symbol)) {
+                <span class="star" title="De los 5 mejores de este filtro">★</span>
+              }
               <span class="symbol">{{ row.symbol }}</span>
               <span class="price">{{ price(row.price) }}</span>
               <span
@@ -329,6 +335,9 @@ function storedView(): StoredView {
                 [class.down]="(row.change52w ?? 0) < 0"
               >
                 <b>52s</b> {{ percent(row.change52w) }}
+              </span>
+              <span class="chip" [class.up]="(row.score ?? 0) >= rsLeader">
+                <b>Score</b> {{ row.score ?? '—' }}
               </span>
               <!-- Highlighted, not coloured up/down: a rating has no sign, only a bar. -->
               <span class="chip" [class.up]="(row.rsRating ?? 0) >= rsLeader">
@@ -390,7 +399,15 @@ function storedView(): StoredView {
                 (click)="selected.emit(row)"
                 [title]="'Ver el detalle de ' + row.symbol"
               >
-                <td class="col-symbol">{{ row.symbol }}</td>
+                <!-- The star goes on the ticker and not on the Score cell: what it marks is the
+                     stock being one of the best of this filter, which is a different claim from
+                     the number beside it — a 92 on a loose filter need not be starred. -->
+                <td class="col-symbol">
+                  @if (top().has(row.symbol)) {
+                    <span class="star" title="De los 5 mejores de este filtro">★</span>
+                  }
+                  {{ row.symbol }}
+                </td>
                 <td class="col-name">{{ row.name }}</td>
                 <td class="col-exchange">{{ row.exchange }}</td>
                 <td class="col-price numeric">{{ price(row.price) }}</td>
@@ -422,6 +439,9 @@ function storedView(): StoredView {
                   [class.down]="(row.change52w ?? 0) < 0"
                 >
                   {{ percent(row.change52w) }}
+                </td>
+                <td class="col-score numeric" [class.up]="(row.score ?? 0) >= rsLeader">
+                  {{ row.score ?? '—' }}
                 </td>
                 <!-- Highlighted, not coloured up/down: a rating has no sign, only a bar. -->
                 <td class="col-rsRating numeric" [class.up]="(row.rsRating ?? 0) >= rsLeader">
@@ -940,8 +960,16 @@ function storedView(): StoredView {
       width: 6rem;
     }
 
+    .col-score,
     .col-rsRating {
       width: 4rem;
+    }
+
+    /* Ahead of the ticker rather than tinting it: the row already uses colour for up and down,
+       and a third meaning on the same channel would read as another price move. */
+    .star {
+      color: var(--accent);
+      margin-right: 0.2rem;
     }
 
     .row td.up {
@@ -1276,6 +1304,13 @@ export class ScreenerPanelComponent implements OnDestroy {
   readonly selected = output<ScreenerSymbol>();
   /** Which ticker the detail is showing, so its row stays marked while the table scrolls. */
   readonly selectedSymbol = input<string | null>(null);
+  /**
+   * The same row again, with the numbers of the page that just landed. The detail is drawn
+   * from a row handed over once, so without this it would keep the prices it was opened
+   * with while the list next to it moves on — a sweep away after a poll, a session away
+   * after a restore.
+   */
+  readonly refreshed = output<ScreenerSymbol>();
 
   protected readonly price = formatPrice;
   protected readonly percent = formatPercent;
@@ -1297,6 +1332,13 @@ export class ScreenerPanelComponent implements OnDestroy {
   private readonly restored = storedView();
 
   protected readonly rows = signal<ScreenerSymbol[]>([]);
+
+  /**
+   * The best-scoring tickers of the whole filter, as sent by the backend. A set and not a list:
+   * every row asks whether it belongs, and only the membership is ever read.
+   */
+  protected readonly top = signal<ReadonlySet<string>>(new Set());
+
   protected readonly exchanges = signal<string[]>([]);
   /** Not stored: a session opens on the whole universe, not on yesterday's search. */
   protected readonly query = signal('');
@@ -1598,11 +1640,17 @@ export class ScreenerPanelComponent implements OnDestroy {
       }
       this.rows.set(result.items);
       this.total.set(result.total);
+      this.top.set(new Set(result.top ?? []));
       this.onSweepState(result.refreshing);
+      const picked = result.items.find(({ symbol }) => symbol === this.selectedSymbol());
+      if (picked) {
+        this.refreshed.emit(picked);
+      }
     } catch (failure) {
       if (id === this.requestId) {
         this.rows.set([]);
         this.total.set(0);
+        this.top.set(new Set());
         this.error.set(this.messageOf(failure));
       }
     } finally {

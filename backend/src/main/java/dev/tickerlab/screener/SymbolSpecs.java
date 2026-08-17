@@ -50,6 +50,7 @@ final class SymbolSpecs {
             atMost(where, builder, root.get("per"), filters.maxPer());
             atMost(where, builder, root.get("priceToBook"), filters.maxPriceToBook());
             atLeast(where, builder, root.get("dividendYield"), filters.minDividendYield());
+            atMostOrUnknown(where, builder, root.get("dividendYield"), filters.maxDividendYield());
             atLeast(where, builder, root.get("change52w"), filters.minChange52w());
             atLeast(where, builder, root.get("fromHigh52w"), filters.minFromHigh52w());
             atLeast(where, builder, root.get("vsSma50"), filters.minVsSma50());
@@ -64,6 +65,7 @@ final class SymbolSpecs {
             atLeast(where, builder, root.get("eps"), filters.minEps());
             atMost(where, builder, root.get("analystRating"), filters.maxAnalystRating());
             atLeast(where, builder, root.get("rsRating"), filters.minRsRating());
+            atLeast(where, builder, root.get("score"), filters.minScore());
 
             // The one bound that reads two columns at once. Multiplied rather than divided: a
             // ticker whose average is zero — freshly listed, or never traded — would take the
@@ -96,6 +98,23 @@ final class SymbolSpecs {
             List<Predicate> where, jakarta.persistence.criteria.CriteriaBuilder builder, Path<T> column, T bound) {
         if (bound != null) {
             where.add(builder.lessThanOrEqualTo(column, bound));
+        }
+    }
+
+    /**
+     * The one bound where a null counts as inside it rather than as unknown, and it exists for
+     * the dividend: Yahoo omits the yield of a company that pays none instead of sending a zero,
+     * so 3.682 of the 5.956 arrive null. Read like every other ceiling, "sin dividendo" would
+     * drop the very companies it is asking for and keep the ten that report a literal 0.
+     *
+     * <p>Deliberately not the general rule. Everywhere else a missing number means the ticker
+     * has not been quoted yet, and letting those through would fill a fundamental screen with
+     * rows nobody has measured.
+     */
+    private static <T extends Comparable<? super T>> void atMostOrUnknown(
+            List<Predicate> where, jakarta.persistence.criteria.CriteriaBuilder builder, Path<T> column, T bound) {
+        if (bound != null) {
+            where.add(builder.or(builder.isNull(column), builder.lessThanOrEqualTo(column, bound)));
         }
     }
 
