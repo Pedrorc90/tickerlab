@@ -19,6 +19,19 @@
         </button>
       }
     </div>
+
+    <div class="chart-types" role="group" aria-label="Tipo de gráfico">
+      @for (option of chartTypes; track option.value) {
+        <button
+          type="button"
+          class="chart-type"
+          [class.active]="chartType() === option.value"
+          (click)="onChartTypeSelected(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
   }
 
   <div class="views" role="group" aria-label="Pantalla">
@@ -129,8 +142,10 @@
         <main class="chart-area">
           <app-price-chart
             [series]="series()"
+            [benchmark]="benchmark()"
             [indicators]="visibleIndicators()"
             [periods]="periods()"
+            [chartType]="chartType()"
           />
         </main>
       </div>
@@ -172,7 +187,13 @@
   />
 
   <main class="chart-area">
-    <app-price-chart [series]="series()" [indicators]="visibleIndicators()" [periods]="periods()" />
+    <app-price-chart
+      [series]="series()"
+      [benchmark]="benchmark()"
+      [indicators]="visibleIndicators()"
+      [periods]="periods()"
+      [chartType]="chartType()"
+    />
   </main>
 
   <app-watchlist-panel

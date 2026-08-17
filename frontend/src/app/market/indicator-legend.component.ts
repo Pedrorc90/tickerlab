@@ -335,6 +335,10 @@ export interface PeriodChange {
       );
     }
 
+    .swatch.rs {
+      background: var(--chart-rs-line);
+    }
+
     .swatch.macd {
       background: linear-gradient(90deg, var(--chart-macd-line) 50%, var(--chart-macd-signal) 50%);
     }

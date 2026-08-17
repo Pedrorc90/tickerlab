@@ -11,6 +11,8 @@ import {
   viewChild,
 } from '@angular/core';
 import {
+  AreaSeries,
+  BarSeries,
   BaselineSeries,
   CandlestickSeries,
   ColorType,
@@ -36,10 +38,12 @@ import {
   simpleMovingAverage,
   volumeMovingAverage,
 } from './indicators/moving-average';
+import { relativeStrengthLine } from './indicators/relative-strength';
 import { RSI_OVERBOUGHT, RSI_OVERSOLD, relativeStrengthIndex } from './indicators/rsi';
 import {
   Candle,
   CandleSeries,
+  ChartType,
   DEFAULT_PERIODS,
   INDICATORS,
   Indicator,
@@ -65,6 +69,7 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
   EMA20: 0,
   EMA50: 0,
   BOLLINGER: 0,
+  RS: 0,
 };
 
 /** Candles live here, and so does anything drawn on top of them. */
@@ -83,10 +88,36 @@ const RIGHT_MARGIN_BARS = 4;
 /** RSI pivots around 50: above it buyers dominate, below it sellers do. */
 const RSI_MIDLINE = 50;
 
+/**
+ * The RS line rides its own scale rather than the price axis: the two measure different
+ * things, and forcing the ratio onto the price scale squashes the candles into a flat line.
+ * Any id that is not `right` or `left` makes lightweight-charts create an overlay scale.
+ */
+const RS_SCALE_ID = 'rs';
+
+/** Keeps that overlay in the top band of the price pane, clear of the candles below it. */
+const RS_SCALE_MARGINS = { top: 0.02, bottom: 0.74 };
+
+/** What candles and bars are fed: the whole bar. */
+const asBar = (candle: Candle) => ({
+  time: candle.time as UTCTimestamp,
+  open: candle.open,
+  high: candle.high,
+  low: candle.low,
+  close: candle.close,
+});
+
+/** What line and area are fed: the close and nothing else. */
+const asClose = (candle: Candle) => ({ time: candle.time as UTCTimestamp, value: candle.close });
+
 /** One switched-on indicator: the series it owns, how to feed them, and its pane label. */
 interface IndicatorPlot {
   series: ISeriesApi<SeriesType>[];
-  setData: (candles: Candle[]) => void;
+  /**
+   * `benchmark` is the index series, and only the RS line reads it: every other indicator
+   * is computed from the ticker's own candles and simply ignores it.
+   */
+  setData: (candles: Candle[], benchmark: Candle[]) => void;
   label?: ITextWatermarkPluginApi<Time>;
   /** Periods this plot was built with — a different one means it has to be rebuilt. */
   signature: string;
@@ -128,10 +159,16 @@ interface IndicatorPlot {
 })
 export class PriceChartComponent implements AfterViewInit, OnDestroy {
   readonly series = input<CandleSeries | null>(null);
+  /**
+   * The index the RS line is divided by, on the same timeframe as `series`. Null whenever
+   * that indicator is off — or when the ticker *is* the index — and the line simply goes.
+   */
+  readonly benchmark = input<CandleSeries | null>(null);
   readonly indicators = input<ReadonlySet<Indicator>>(
     new Set<Indicator>(INDICATORS.map(({ value }) => value)),
   );
   readonly periods = input<IndicatorPeriods>(DEFAULT_PERIODS);
+  readonly chartType = input<ChartType>('CANDLES');
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
 
@@ -143,7 +180,15 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   private palette = this.theme.chart();
 
   private chart?: IChartApi;
-  private candleSeries?: ISeriesApi<'Candlestick'>;
+  /** Feeds whichever price series is up: candles take OHLC, line and area take the close. */
+  private setPriceData: (candles: Candle[]) => void = () => undefined;
+  /** The shape the current price series was built as — a different one means rebuilding. */
+  private drawnType?: ChartType;
+  /**
+   * The series the initial framing was done for. Anything else — a switched indicator, a new
+   * price shape, a theme — redraws inside the range the user left, instead of yanking it back.
+   */
+  private framedSeries?: CandleSeries | null;
   /** Only the indicators currently switched on. Everything else has been removed outright. */
   private readonly plots = new Map<Indicator, IndicatorPlot>();
   private resizeObserver?: ResizeObserver;
@@ -153,13 +198,22 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     // no-ops until the chart exists.
     effect(() => {
       const series = this.series();
+      const benchmark = this.benchmark();
       const indicators = this.indicators();
       const periods = this.periods();
-      if (this.chart) {
-        this.syncIndicators(indicators, periods);
-        this.draw(series);
-        this.layoutPanes();
+      const chartType = this.chartType();
+      if (!this.chart) {
+        return;
       }
+      // A series' shape is fixed when it is created, so a new one is a rebuild — same as a
+      // new palette. Everything below happens inside it.
+      if (chartType !== this.drawnType) {
+        this.rebuild();
+        return;
+      }
+      this.syncIndicators(indicators, periods);
+      this.draw(series, benchmark);
+      this.layoutPanes();
     });
 
     // Series colours are fixed when the series is created, so a new palette means starting
@@ -178,7 +232,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     this.createChart();
     this.syncIndicators(this.indicators(), this.periods());
-    this.draw(this.series());
+    this.draw(this.series(), this.benchmark());
     this.layoutPanes();
   }
 
@@ -187,22 +241,31 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     this.chart?.remove();
   }
 
-  /** Tears the whole chart down and builds it again in the current palette. */
+  /**
+   * Tears the whole chart down and builds it again — the way both a new palette and a new
+   * price shape are applied, since series colours and series type are both fixed at creation.
+   * The visible range is carried over by hand: the new time scale knows nothing about the old
+   * one, and coming back to the last seventh after every theme click is jarring.
+   */
   private rebuild(): void {
+    const range = this.chart?.timeScale().getVisibleLogicalRange();
+
     this.resizeObserver?.disconnect();
     this.resizeObserver = undefined;
     this.chart?.remove();
     this.chart = undefined;
-    this.candleSeries = undefined;
     this.plots.clear();
 
-    this.createChart();
+    const chart = this.createChart();
     this.syncIndicators(this.indicators(), this.periods());
-    this.draw(this.series());
+    this.draw(this.series(), this.benchmark());
+    if (range) {
+      chart.timeScale().setVisibleLogicalRange(range);
+    }
     this.layoutPanes();
   }
 
-  private createChart(): void {
+  private createChart(): IChartApi {
     const COLORS = this.palette;
     const element = this.host().nativeElement;
 
@@ -224,17 +287,68 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       autoSize: true,
     });
 
-    this.candleSeries = this.chart.addSeries(CandlestickSeries, {
-      upColor: COLORS.up,
-      downColor: COLORS.down,
-      borderUpColor: COLORS.up,
-      borderDownColor: COLORS.down,
-      wickUpColor: COLORS.up,
-      wickDownColor: COLORS.down,
-    });
+    this.createPriceSeries(this.chart);
 
     this.resizeObserver = new ResizeObserver(() => this.layoutPanes());
     this.resizeObserver.observe(element);
+
+    return this.chart;
+  }
+
+  /**
+   * Builds the price in whichever shape is switched on. Each one brings its own mapping: the
+   * two bar shapes are fed the whole bar, the two continuous ones only the close.
+   */
+  private createPriceSeries(chart: IChartApi): void {
+    const COLORS = this.palette;
+    const type = this.chartType();
+    this.drawnType = type;
+
+    switch (type) {
+      case 'CANDLES': {
+        const series = chart.addSeries(CandlestickSeries, {
+          upColor: COLORS.up,
+          downColor: COLORS.down,
+          borderUpColor: COLORS.up,
+          borderDownColor: COLORS.down,
+          wickUpColor: COLORS.up,
+          wickDownColor: COLORS.down,
+        });
+        this.setPriceData = (candles) => series.setData(candles.map(asBar));
+        break;
+      }
+
+      case 'BARS': {
+        // `thinBars` off: the default hairline is unreadable next to the candles it replaces.
+        const series = chart.addSeries(BarSeries, {
+          upColor: COLORS.up,
+          downColor: COLORS.down,
+          thinBars: false,
+        });
+        this.setPriceData = (candles) => series.setData(candles.map(asBar));
+        break;
+      }
+
+      case 'LINE': {
+        const series = chart.addSeries(LineSeries, {
+          color: COLORS.priceLine,
+          lineWidth: 2,
+        });
+        this.setPriceData = (candles) => series.setData(candles.map(asClose));
+        break;
+      }
+
+      case 'AREA': {
+        const series = chart.addSeries(AreaSeries, {
+          lineColor: COLORS.priceLine,
+          lineWidth: 2,
+          topColor: COLORS.priceAreaTop,
+          bottomColor: COLORS.priceAreaBottom,
+        });
+        this.setPriceData = (candles) => series.setData(candles.map(asClose));
+        break;
+      }
+    }
   }
 
   /**
@@ -391,6 +505,36 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
               points.map((point) => ({ time: point.time as UTCTimestamp, value: point.lower })),
             );
           },
+        };
+      }
+
+      case 'RS': {
+        // Thicker than the moving averages around it: this one is read on its own, as a
+        // shape, not compared bar by bar against the price underneath.
+        const series = chart.addSeries(
+          LineSeries,
+          {
+            color: COLORS.rsLine,
+            lineWidth: 2,
+            priceScaleId: RS_SCALE_ID,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          },
+          PRICE_PANE,
+        );
+        series.priceScale().applyOptions({ scaleMargins: RS_SCALE_MARGINS });
+
+        return {
+          series: [series],
+          signature,
+          setData: (candles, benchmark) =>
+            series.setData(
+              relativeStrengthLine(candles, benchmark).map((point) => ({
+                time: point.time as UTCTimestamp,
+                value: point.value,
+              })),
+            ),
         };
       }
 
@@ -640,30 +784,25 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private draw(series: CandleSeries | null): void {
+  private draw(series: CandleSeries | null, benchmark: CandleSeries | null): void {
     const candles = series?.candles ?? [];
 
-    this.candleSeries?.setData(
-      candles.map((c) => ({
-        time: c.time as UTCTimestamp,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      })),
-    );
+    this.setPriceData(candles);
 
     for (const plot of this.plots.values()) {
-      plot.setData(candles);
+      plot.setData(candles, benchmark?.candles ?? []);
     }
 
-    if (candles.length) {
+    // Only a genuinely new series gets framed. A toggled indicator, a new price shape or a
+    // theme change redraw the same bars, and re-framing there would undo the user's scrolling.
+    if (candles.length && series !== this.framedSeries) {
       const visibleBars = Math.max(1, Math.round(candles.length * INITIAL_VISIBLE_FRACTION));
       this.chart?.timeScale().setVisibleLogicalRange({
         from: candles.length - visibleBars,
         to: candles.length - 1 + RIGHT_MARGIN_BARS,
       });
     }
+    this.framedSeries = series;
   }
 
   /** Panes are sized in pixels, so they need recomputing on every resize and every toggle. */

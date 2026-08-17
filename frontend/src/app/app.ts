@@ -2,7 +2,9 @@ import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { MarketService } from './market/market.service';
 import {
+  CHART_TYPES,
   CandleSeries,
+  ChartType,
   DEFAULT_PERIODS,
   INDICATORS,
   Indicator,
@@ -12,6 +14,7 @@ import {
   TIMEFRAMES,
   Timeframe,
 } from './market/market.models';
+import { RS_BENCHMARK } from './market/indicators/relative-strength';
 import { IndicatorLegendComponent, PeriodChange } from './market/indicator-legend.component';
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
@@ -34,6 +37,15 @@ const DEFAULT_SYMBOL = 'AAPL';
 
 /** Whether the indicator descriptions were left open. UI state, so it stays in the browser. */
 const SHOW_HINTS_KEY = 'tickerlab.showIndicatorHints';
+
+/** How the price is drawn. UI state, so it stays in the browser. */
+const CHART_TYPE_KEY = 'tickerlab.chartType';
+
+/** Unlike the periods there is nothing to merge here: it is one value, valid or not. */
+function storedChartType(): ChartType {
+  const saved = localStorage.getItem(CHART_TYPE_KEY);
+  return CHART_TYPES.find(({ value }) => value === saved)?.value ?? 'CANDLES';
+}
 
 /** Which indicators were switched off. UI state, so it stays in the browser. */
 const HIDDEN_INDICATORS_KEY = 'tickerlab.hiddenIndicators';
@@ -100,6 +112,7 @@ function storedPeriods(): IndicatorPeriods {
 })
 export class App {
   protected readonly timeframes = TIMEFRAMES;
+  protected readonly chartTypes = CHART_TYPES;
 
   protected readonly price = formatPrice;
   protected readonly percent = formatPercent;
@@ -108,6 +121,11 @@ export class App {
 
   protected readonly symbol = signal(DEFAULT_SYMBOL);
   protected readonly timeframe = signal<Timeframe>('DAY');
+  /**
+   * Candles on a first visit; after that, whatever shape was left. The screener detail has no
+   * selector of its own and reads this same one, the way it already does with the timeframe.
+   */
+  protected readonly chartType = signal<ChartType>(storedChartType());
   /** Which screen is up. Not stored: a session always opens on the chart. */
   protected readonly view = signal<View>('chart');
   /** Everything on for a first visit; after that, however the legend was left. */
@@ -123,6 +141,8 @@ export class App {
   /** Descriptions under each pill. On the first visit they are shown; after that, as left. */
   protected readonly showHints = signal(localStorage.getItem(SHOW_HINTS_KEY) !== 'false');
   protected readonly series = signal<CandleSeries | null>(null);
+  /** The index the RS line reads. Null unless that indicator is on; see `loadBenchmark`. */
+  protected readonly benchmark = signal<CandleSeries | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
@@ -147,9 +167,12 @@ export class App {
   private readonly market = inject(MarketService);
   /** Discards responses that arrive after the user already moved on. */
   private requestId = 0;
+  /** The same guard for the benchmark, which travels on its own request. */
+  private benchmarkRequestId = 0;
 
   constructor() {
     effect(() => localStorage.setItem(SHOW_HINTS_KEY, `${this.showHints()}`));
+    effect(() => localStorage.setItem(CHART_TYPE_KEY, this.chartType()));
     effect(() => {
       const visible = this.visibleIndicators();
       const hidden = INDICATORS.map(({ value }) => value).filter((value) => !visible.has(value));
@@ -160,6 +183,15 @@ export class App {
         ([key, value]) => value !== DEFAULT_PERIODS[key as PeriodKey],
       );
       localStorage.setItem(PERIODS_KEY, JSON.stringify(Object.fromEntries(moved)));
+    });
+    // The index rides on a second request, so it is only fetched while the RS line is on.
+    // Kept as an effect rather than folded into `load`: switching the indicator on has to
+    // fetch it too, and that happens without the ticker or the timeframe moving at all.
+    effect(() => {
+      const wanted = this.visibleIndicators().has('RS');
+      const symbol = this.symbol();
+      const timeframe = this.timeframe();
+      void this.loadBenchmark(wanted, symbol, timeframe);
     });
     void this.load();
   }
@@ -221,6 +253,11 @@ export class App {
     void this.load();
   }
 
+  /** Only repaints: the bars are the same, it is the shape drawn from them that changes. */
+  protected onChartTypeSelected(chartType: ChartType): void {
+    this.chartType.set(chartType);
+  }
+
   protected formatVolume(volume: number): string {
     if (volume >= 1_000_000_000) {
       return `${(volume / 1_000_000_000).toFixed(2)} B`;
@@ -232,6 +269,33 @@ export class App {
       return `${(volume / 1_000).toFixed(1)} K`;
     }
     return `${volume}`;
+  }
+
+  /**
+   * Dividing the index by itself draws a flat line that says nothing, so a ticker that *is*
+   * the benchmark gets none. A failure is swallowed on purpose: the RS line goes missing and
+   * the chart it belongs to carries on, rather than the whole screen reporting an error.
+   */
+  private async loadBenchmark(
+    wanted: boolean,
+    symbol: string,
+    timeframe: Timeframe,
+  ): Promise<void> {
+    const id = ++this.benchmarkRequestId;
+    if (!wanted || symbol === RS_BENCHMARK) {
+      this.benchmark.set(null);
+      return;
+    }
+    try {
+      const result = await this.market.loadCandles(RS_BENCHMARK, timeframe);
+      if (id === this.benchmarkRequestId) {
+        this.benchmark.set(result);
+      }
+    } catch {
+      if (id === this.benchmarkRequestId) {
+        this.benchmark.set(null);
+      }
+    }
   }
 
   private async load(): Promise<void> {

@@ -8,6 +8,19 @@ export const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
 ];
 
 /**
+ * How the price itself is drawn. Indicators are untouched by it: every one of them reads
+ * the same candles whatever shape the price takes.
+ */
+export type ChartType = 'CANDLES' | 'BARS' | 'LINE' | 'AREA';
+
+export const CHART_TYPES: ReadonlyArray<{ value: ChartType; label: string }> = [
+  { value: 'CANDLES', label: 'Velas' },
+  { value: 'BARS', label: 'Barras' },
+  { value: 'LINE', label: 'Línea' },
+  { value: 'AREA', label: 'Área' },
+];
+
+/**
  * Indicators the user can switch off. Candles are not one of them: without candles
  * there is no chart. Order here is the order the panes keep on screen.
  */
@@ -17,6 +30,7 @@ export type Indicator =
   | 'EMA20'
   | 'EMA50'
   | 'BOLLINGER'
+  | 'RS'
   | 'VOLUME'
   | 'RSI'
   | 'MACD'
@@ -107,6 +121,18 @@ export const INDICATORS: ReadonlyArray<{
       { key: 'bollinger', label: 'Periodo', defaultValue: 20, min: 2, max: 200 },
       { key: 'bollingerDeviations', label: 'Desviaciones', defaultValue: 2, min: 1, max: 4 },
     ],
+  },
+  {
+    value: 'RS',
+    swatch: 'rs',
+    label: 'RS',
+    hint: 'Fuerza frente al S&P 500: si sube, lo bate.',
+    // Drawn over the price on a scale of its own, the way IBD does it: the shape is read
+    // against the candles below, so splitting them into two panes loses the comparison.
+    overlay: true,
+    // The benchmark is fixed and the ratio has no window to average, so there is nothing
+    // to tune: this is the one indicator whose pill carries no numbers.
+    params: [],
   },
   {
     value: 'VOLUME',

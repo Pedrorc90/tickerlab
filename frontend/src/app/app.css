@@ -40,7 +40,8 @@ app-ticker-search {
   max-width: 32rem;
 }
 
-.timeframes {
+.timeframes,
+.chart-types {
   display: flex;
   gap: 0.25rem;
   margin-left: auto;
@@ -50,7 +51,14 @@ app-ticker-search {
   border-radius: 6px;
 }
 
-.timeframe {
+/* Rides next to the timeframes rather than claiming its own auto margin: both answer the
+   same question about how the chart is cut. */
+.chart-types {
+  margin-left: 0;
+}
+
+.timeframe,
+.chart-type {
   padding: 0.35rem 0.85rem;
   border: 0;
   border-radius: 4px;
@@ -61,11 +69,13 @@ app-ticker-search {
   cursor: pointer;
 }
 
-.timeframe:hover {
+.timeframe:hover,
+.chart-type:hover {
   color: var(--text);
 }
 
-.timeframe.active {
+.timeframe.active,
+.chart-type.active {
   background: var(--accent);
   color: var(--on-accent);
 }

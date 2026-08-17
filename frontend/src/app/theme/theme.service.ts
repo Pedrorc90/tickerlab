@@ -14,6 +14,13 @@ export interface ChartPalette {
   border: string;
   up: string;
   down: string;
+  /**
+   * Line and area draw one continuous close, so there is no up/down side to colour by:
+   * they get a colour of their own instead.
+   */
+  priceLine: string;
+  priceAreaTop: string;
+  priceAreaBottom: string;
   volumeUp: string;
   volumeDown: string;
   volumeAverage: string;
@@ -31,6 +38,7 @@ export interface ChartPalette {
   emaSlow: string;
   bollingerBand: string;
   bollingerBasis: string;
+  rsLine: string;
   macdLine: string;
   macdSignal: string;
   macdHistUp: string;
@@ -60,6 +68,9 @@ export const THEMES: readonly Theme[] = [
       border: '#2a2e39',
       up: '#26a69a',
       down: '#ef5350',
+      priceLine: '#2962ff',
+      priceAreaTop: 'rgba(41, 98, 255, 0.35)',
+      priceAreaBottom: 'rgba(41, 98, 255, 0)',
       volumeUp: 'rgba(38, 166, 154, 0.5)',
       volumeDown: 'rgba(239, 83, 80, 0.5)',
       volumeAverage: '#e0e3eb',
@@ -77,6 +88,9 @@ export const THEMES: readonly Theme[] = [
       emaSlow: '#fb7185',
       bollingerBand: '#6f86c9',
       bollingerBasis: 'rgba(111, 134, 201, 0.55)',
+      // Cyan is the one hue no other overlay uses: the RS line has to be picked out at a
+      // glance from the moving averages it shares the price pane with.
+      rsLine: '#22d3ee',
       macdLine: '#4b8bff',
       macdSignal: '#ff9f43',
       macdHistUp: 'rgba(38, 166, 154, 0.55)',
@@ -99,6 +113,9 @@ export const THEMES: readonly Theme[] = [
       border: '#d5cab2',
       up: '#2f7d5f',
       down: '#b3402f',
+      priceLine: '#1f4e79',
+      priceAreaTop: 'rgba(31, 78, 121, 0.28)',
+      priceAreaBottom: 'rgba(31, 78, 121, 0)',
       volumeUp: 'rgba(47, 125, 95, 0.4)',
       volumeDown: 'rgba(179, 64, 47, 0.4)',
       volumeAverage: '#6a6152',
@@ -116,6 +133,7 @@ export const THEMES: readonly Theme[] = [
       emaSlow: '#c04a5e',
       bollingerBand: '#4a6fa5',
       bollingerBasis: 'rgba(74, 111, 165, 0.5)',
+      rsLine: '#0e7490',
       macdLine: '#2b5f9e',
       macdSignal: '#c26a1a',
       macdHistUp: 'rgba(47, 125, 95, 0.5)',
