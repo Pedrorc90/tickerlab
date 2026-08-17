@@ -21,6 +21,10 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - [x] **F10 — Añadir a watchlist desde el screener** (2026-08-16, probada en la app): una columna `+` al final de cada fila abre un menú con las listas y un «+ Nueva lista» con caja inline, que crea y añade de una vez. Las listas que ya tienen el ticker salen con ✓: el `POST /entries` es idempotente, así que sin la marca un segundo clic no diría nada. Solo se tocó `screener-panel.component.ts` — el backend de F8 ya servía. El menú va `position: fixed` con las coordenadas del botón, no `absolute` dentro de la celda: `.table-wrap` tiene `overflow: auto` y recortaba el menú en las últimas filas.
 
+- [x] **F11 — ADX/DMI(14)** (2026-08-16, documentada a posteriori): tres líneas en panel propio (`indicators/adx.ts`), no el ADX solo — la fuerza por sí sola dice que hay tendencia pero no de quién, y eso ya lo enseñan las medias. +DI/−DI dan el lado, el ADX si ese lado merece confianza, y una línea a trazos en 25 marca dónde empieza a merecerla. Eje autoescalado y no fijo a 0-100 como el RSI: las tres líneas rara vez pasan de 60.
+
+- [x] **F12 — Encuadre del screener** (2026-08-16, probada en la app): la tabla deja de ser la pantalla entera y pasa a ser un bloque — 1400 px centrados con borde y radio, y el hueco de abajo se queda vacío. **Sin scroll**: `PAGE_SIZE` baja de 50 a 25 para que una página traiga exactamente lo que cabe, así la tabla mide lo que miden sus filas y la barra desaparece. El padding vertical de fila baja a 0.25rem porque con 0.35rem esas 25 filas se salen de una ventana de 1080p y el scroll vuelve. El pager comparte ancho con la tabla en vez de ser una barra a sangre, que se leía como pie de página.
+
 ## Notas
 
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
@@ -49,7 +53,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 ## Pendiente de decidir
 
-- **Indicadores aparcados** (2026-08-16): ADX/DMI(14), recomendado al abrir F5 y sin hacer todavía (las EMA salieron de esta misma lista en F9). VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
+- **Indicadores aparcados** (2026-08-16): la lista se ha vaciado — las EMA salieron en F9 y el ADX/DMI en F11. VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
+- **Margen del alto del screener** (2026-08-16): con 25 filas y padding 0.25rem quedan 76 px libres en 1080p. Con barra de marcadores o una ventana más baja el scroll reaparece; bajar el padding a 0.22rem daría ~100 px de colchón. Sin decidir si compensa apretar más la fila o asumirlo.
 - **Periodos entre sesiones** (2026-08-16): los periodos son editables pero viven en memoria. Persistirlos es una entrada más de `localStorage`; sin decidir si conviene o si el valor de manual es mejor punto de partida cada vez.
 - **Tema Ámbar descartado** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
 - **Sector e industria en el screener** (2026-08-16): los pedía F2 y se quedaron fuera — el `quote` no los trae y sacarlos de `quoteSummary` son 5.956 llamadas. Sin decidir si compensa (¿carga perezosa solo de lo que se ve? ¿otra fuente?).
