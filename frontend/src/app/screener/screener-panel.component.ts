@@ -52,12 +52,27 @@ const PANEL_OPEN_KEY = 'tickerlab.screenerFiltersOpen';
  */
 const VIEW_KEY = 'tickerlab.screenerView';
 
-/** What lands in `VIEW_KEY`. Everything optional: an older entry is missing the newer fields. */
+/**
+ * What lands in `VIEW_KEY`. Everything optional: an older entry is missing the newer fields.
+ *
+ * Each pick is stored by its option **label**, not by its position: inserting a tier moves
+ * every index below it, so an entry written before «Más de 9 $» joined the price dropdown came
+ * back one tier off — the right field filtering by the wrong bound, which nothing on screen
+ * contradicts. `PRESETS` name their options the same way and for the same reason.
+ */
 interface StoredView {
-  picks?: Record<string, number>;
+  picks?: Record<string, string>;
   exchange?: string;
   sort?: SortField;
   descending?: boolean;
+}
+
+/** The same view once resolved against `RANGE_SELECTS`: picks are indices again, as the UI uses them. */
+interface RestoredView {
+  picks: Record<string, number>;
+  exchange: string;
+  sort: SortField;
+  descending: boolean;
 }
 
 interface Column {
@@ -106,26 +121,38 @@ const VOLUME_DRY = 0.7;
  * entry was written, and an unknown id or an index past the end of its options would send a
  * bound the backend never asked for. Whatever fails a check is dropped, not the whole entry.
  */
-function storedView(): StoredView {
+function storedView(): RestoredView {
   try {
     const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') as StoredView;
-    const picks = Object.entries(saved.picks ?? {}).filter(([id, index]) => {
-      const select = RANGE_SELECTS.find((candidate) => candidate.id === id);
-      return select && Number.isInteger(index) && index > 0 && index < select.options.length;
-    });
+    // An entry written before this went by label holds numbers, and those numbers are exactly
+    // the ones that may have shifted: they are dropped rather than read as positions, because
+    // restoring the wrong tier is worse than restoring nothing. It costs one session's filters.
+    const picks = Object.entries(saved.picks ?? {})
+      .map(([id, label]) => [id, optionIndex(id, label)] as const)
+      .filter(([, index]) => index > 0);
+    const sort = saved.sort;
     return {
       picks: Object.fromEntries(picks),
       exchange: typeof saved.exchange === 'string' ? saved.exchange : '',
       // A derived column never was a valid sort, so one saved by a future version of the
       // table is dropped here rather than sent to a backend that cannot order by it.
-      sort: COLUMNS.some((column) => !column.derived && column.field === saved.sort)
-        ? saved.sort
+      sort: sort && COLUMNS.some((column) => !column.derived && column.field === sort)
+        ? sort
         : 'symbol',
       descending: saved.descending === true,
     };
   } catch {
     return { picks: {}, exchange: '', sort: 'symbol', descending: false };
   }
+}
+
+/** Where a saved label sits in its dropdown today. 0 if the dropdown, or that option, is gone. */
+function optionIndex(id: string, label: unknown): number {
+  const select = RANGE_SELECTS.find((candidate) => candidate.id === id);
+  if (!select || typeof label !== 'string') {
+    return 0;
+  }
+  return select.options.findIndex((option) => option.label === label);
 }
 
 @Component({
@@ -1342,15 +1369,15 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly exchanges = signal<string[]>([]);
   /** Not stored: a session opens on the whole universe, not on yesterday's search. */
   protected readonly query = signal('');
-  protected readonly exchange = signal(this.restored.exchange ?? '');
+  protected readonly exchange = signal(this.restored.exchange);
   /** Which option each dropdown sits on, by id. Absent or 0 means "no filter". */
-  protected readonly picks = signal<Record<string, number>>(this.restored.picks ?? {});
+  protected readonly picks = signal<Record<string, number>>(this.restored.picks);
   protected readonly panelOpen = signal(localStorage.getItem(PANEL_OPEN_KEY) === 'true');
   /** Always the first page: with the filters restored, the page number they came from is noise. */
   protected readonly page = signal(0);
   protected readonly total = signal(0);
-  protected readonly sort = signal<SortField>(this.restored.sort ?? 'symbol');
-  protected readonly descending = signal(this.restored.descending ?? false);
+  protected readonly sort = signal<SortField>(this.restored.sort);
+  protected readonly descending = signal(this.restored.descending);
   protected readonly loading = signal(false);
   /** A quote sweep is running on the backend, whoever started it. */
   protected readonly refreshing = signal(false);
@@ -1414,9 +1441,15 @@ export class ScreenerPanelComponent implements OnDestroy {
     // Only the dropdowns actually narrowing something are written, so a filter added later
     // starts on "no filter" instead of on an index saved before it existed.
     effect(() => {
-      const picks = Object.entries(this.picks()).filter(([, index]) => index > 0);
+      const picks: Record<string, string> = {};
+      for (const [id, index] of Object.entries(this.picks())) {
+        const label = RANGE_SELECTS.find((select) => select.id === id)?.options[index]?.label;
+        if (index > 0 && label) {
+          picks[id] = label;
+        }
+      }
       const view: StoredView = {
-        picks: Object.fromEntries(picks),
+        picks,
         exchange: this.exchange(),
         sort: this.sort(),
         descending: this.descending(),
