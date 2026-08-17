@@ -67,7 +67,11 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
   { field: 'per', label: 'PER', numeric: true },
   { field: 'eps', label: 'BPA', numeric: true },
   { field: 'change52w', label: '52 sem.', numeric: true },
+  { field: 'rsRating', label: 'RS', numeric: true },
 ];
+
+/** At or above this the stock is outrunning 80 % of the market: IBD's bar for a leader. */
+const RS_LEADER = 80;
 
 /**
  * Nothing stored is trusted as-is: a dropdown may have been renamed or lost a tier since the
@@ -232,6 +236,10 @@ function storedView(): StoredView {
                 [class.down]="(row.change52w ?? 0) < 0"
               >
                 {{ percent(row.change52w) }}
+              </td>
+              <!-- Highlighted, not coloured up/down: a rating has no sign, only a bar. -->
+              <td class="col-rsRating numeric" [class.up]="(row.rsRating ?? 0) >= rsLeader">
+                {{ row.rsRating ?? '—' }}
               </td>
               <td class="col-add">
                 <button
@@ -611,6 +619,10 @@ function storedView(): StoredView {
       width: 6rem;
     }
 
+    .col-rsRating {
+      width: 4rem;
+    }
+
     .row td.up {
       color: var(--chart-up);
     }
@@ -804,6 +816,7 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly compact = formatCompact;
 
   protected readonly columns = COLUMNS;
+  protected readonly rsLeader = RS_LEADER;
   protected readonly groups = FILTER_GROUPS;
 
   /** How the table was left last time, already checked over. Read once, at construction. */

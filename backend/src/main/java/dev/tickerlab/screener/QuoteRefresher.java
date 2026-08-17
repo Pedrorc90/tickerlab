@@ -103,11 +103,37 @@ public class QuoteRefresher {
         for (int index = 0; index < universe.size(); index += YahooQuoteClient.BATCH_SIZE) {
             List<String> batch = universe.subList(index,
                     Math.min(index + YahooQuoteClient.BATCH_SIZE, universe.size()));
-            quoted += applyBatch(batch);
+            quoted += applyBatchQuietly(batch);
             pause();
         }
-        log.info("Quote sweep finished: {} of {} symbols quoted in {} ms",
-                quoted, universe.size(), System.currentTimeMillis() - start);
+        int ranked = rank();
+        log.info("Quote sweep finished: {} of {} symbols quoted, {} ratings moved, in {} ms",
+                quoted, universe.size(), ranked, System.currentTimeMillis() - start);
+    }
+
+    /**
+     * Ranks relative strength once the last batch is in, never per batch: a percentile only
+     * means something against a finished universe, and scoring half-refreshed numbers would
+     * rate the symbols swept first against yesterday's version of everyone else.
+     */
+    private int rank() {
+        Integer moved = transactions.execute(status -> repository.rankRelativeStrength());
+        return moved == null ? 0 : moved;
+    }
+
+    /**
+     * One rejected row must not cost the sweep. A batch is written in a single transaction,
+     * so a value Postgres refuses does take that batch down with it — but the next hundred
+     * still go in, and the ranking at the end still runs, which is what used to be lost.
+     */
+    private int applyBatchQuietly(List<String> batch) {
+        try {
+            return applyBatch(batch);
+        } catch (RuntimeException failure) {
+            log.warn("Skipped a batch of {} symbols starting at {}: {}",
+                    batch.size(), batch.getFirst(), failure.getMessage());
+            return 0;
+        }
     }
 
     private int applyBatch(List<String> batch) {

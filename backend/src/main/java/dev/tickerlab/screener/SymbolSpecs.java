@@ -61,6 +61,7 @@ final class SymbolSpecs {
             atMost(where, builder, root.get("forwardPer"), filters.maxForwardPer());
             atLeast(where, builder, root.get("eps"), filters.minEps());
             atMost(where, builder, root.get("analystRating"), filters.maxAnalystRating());
+            atLeast(where, builder, root.get("rsRating"), filters.minRsRating());
 
             return where.isEmpty() ? null : builder.and(where.toArray(new Predicate[0]));
         };

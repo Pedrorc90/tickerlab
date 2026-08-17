@@ -26,6 +26,12 @@ export interface ScreenerSymbol {
   readonly eps: number | null;
   /** Analyst consensus: 1 is a strong buy and 5 a sell, so lower is better. */
   readonly analystRating: number | null;
+  /**
+   * Relative strength against every other listed share, 1 to 99, the way IBD scores it:
+   * 99 means only 1 % of the market has done better. Unlike the columns above it is not
+   * quoted but computed, so it moves whenever the universe is re-swept.
+   */
+  readonly rsRating: number | null;
 }
 
 /** Every column the backend accepts an order by. */
@@ -116,6 +122,7 @@ export interface Filters {
   maxForwardPer: number | null;
   minEps: number | null;
   maxAnalystRating: number | null;
+  minRsRating: number | null;
 }
 
 /** The numeric half of the filters: what a dropdown can set. */
@@ -279,6 +286,19 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
     ],
   },
   {
+    // First of the technical group on purpose: in the IBD method the rating is what you
+    // filter on before anything else, and the rest only narrows what it already picked.
+    id: 'rsRating',
+    group: 'Técnico',
+    minKey: 'minRsRating',
+    options: [
+      { label: 'RS: cualquiera' },
+      { label: 'RS 70+', min: 70 },
+      { label: 'RS 80+ (líder)', min: 80 },
+      { label: 'RS 90+ (top 10 %)', min: 90 },
+    ],
+  },
+  {
     id: 'change',
     group: 'Técnico',
     minKey: 'minChange',
@@ -383,6 +403,7 @@ export function filtersFrom(
     maxForwardPer: null,
     minEps: null,
     maxAnalystRating: null,
+    minRsRating: null,
   };
   for (const select of RANGE_SELECTS) {
     const option = select.options[picks[select.id] ?? 0];

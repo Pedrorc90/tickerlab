@@ -19,6 +19,15 @@ public class Symbol {
     /** Long enough for the ETN descriptions the files use as a security name. */
     public static final int MAX_NAME_LENGTH = 500;
 
+    /** What a NUMERIC(12,4) column holds: eight digits ahead of the point. */
+    private static final BigDecimal MAX_12_4 = BigDecimal.TEN.pow(8);
+
+    /** And a NUMERIC(10,4) one: six. */
+    private static final BigDecimal MAX_10_4 = BigDecimal.TEN.pow(6);
+
+    /** The analyst consensus column is NUMERIC(4,2), so two. */
+    private static final BigDecimal MAX_4_2 = BigDecimal.TEN.pow(2);
+
     @Id
     @Column(length = 20)
     private String symbol;
@@ -81,6 +90,14 @@ public class Symbol {
     /** Analyst consensus: 1 is a strong buy and 5 a sell, so lower is better here. */
     @Column(name = "analyst_rating", precision = 4, scale = 2)
     private BigDecimal analystRating;
+
+    /**
+     * Relative strength against the rest of the universe, 1 to 99. The one metric here that
+     * Yahoo does not supply: it is written by {@code SymbolRepository#rankRelativeStrength}
+     * once a sweep has quoted everything, which is why {@link #quote} never touches it.
+     */
+    @Column(name = "rs_rating")
+    private Integer rsRating;
 
     /** When the quote above was read. What decides whether the universe needs a sweep. */
     @Column(name = "quoted_at")
@@ -180,6 +197,10 @@ public class Symbol {
         return analystRating;
     }
 
+    public Integer getRsRating() {
+        return rsRating;
+    }
+
     public OffsetDateTime getQuotedAt() {
         return quotedAt;
     }
@@ -200,22 +221,39 @@ public class Symbol {
      */
     public void quote(Quote quote, OffsetDateTime quotedAt) {
         this.price = quote.price();
-        this.changePercent = quote.changePercent();
+        this.changePercent = fit(quote.changePercent(), MAX_10_4);
         this.volume = quote.volume();
         this.marketCap = quote.marketCap();
-        this.per = quote.per();
-        this.priceToBook = quote.priceToBook();
-        this.dividendYield = quote.dividendYield();
-        this.change52w = quote.change52w();
-        this.fromHigh52w = quote.fromHigh52w();
-        this.fromLow52w = quote.fromLow52w();
-        this.vsSma50 = quote.vsSma50();
-        this.vsSma200 = quote.vsSma200();
+        this.per = fit(quote.per(), MAX_12_4);
+        this.priceToBook = fit(quote.priceToBook(), MAX_12_4);
+        this.dividendYield = fit(quote.dividendYield(), MAX_10_4);
+        this.change52w = fit(quote.change52w(), MAX_12_4);
+        this.fromHigh52w = fit(quote.fromHigh52w(), MAX_10_4);
+        this.fromLow52w = fit(quote.fromLow52w(), MAX_12_4);
+        this.vsSma50 = fit(quote.vsSma50(), MAX_10_4);
+        this.vsSma200 = fit(quote.vsSma200(), MAX_10_4);
         this.avgVolume3m = quote.avgVolume3m();
         this.sharesOutstanding = quote.sharesOutstanding();
-        this.forwardPer = quote.forwardPer();
-        this.eps = quote.eps();
-        this.analystRating = quote.analystRating();
+        this.forwardPer = fit(quote.forwardPer(), MAX_12_4);
+        this.eps = fit(quote.eps(), MAX_12_4);
+        this.analystRating = fit(quote.analystRating(), MAX_4_2);
         this.quotedAt = quotedAt;
+    }
+
+    /**
+     * Drops a ratio too big for the column it is headed for. Yahoo hands out the odd
+     * eight-digit percentage — a penny stock measured off a 0.0001 low, a split it never
+     * adjusted for — and Postgres rejects the whole batch over one of them, which used to
+     * take the rest of the sweep down with it.
+     *
+     * <p>Null rather than a clamp to the ceiling: a 40.000.000 % gain is not a measurement
+     * that happens to be large, it is a broken one, and capping it would leave the ticker
+     * sitting at the top of every ranking that reads the column.
+     */
+    private static BigDecimal fit(BigDecimal value, BigDecimal ceiling) {
+        if (value == null) {
+            return null;
+        }
+        return value.abs().compareTo(ceiling) < 0 ? value : null;
     }
 }

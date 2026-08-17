@@ -34,7 +34,8 @@ public class ScreenerService {
     private static final Set<String> SORTABLE = Set.of(
             "symbol", "name", "exchange", "price", "changePercent", "volume", "marketCap",
             "per", "priceToBook", "dividendYield", "change52w", "fromHigh52w", "vsSma50", "vsSma200",
-            "fromLow52w", "avgVolume3m", "sharesOutstanding", "forwardPer", "eps", "analystRating");
+            "fromLow52w", "avgVolume3m", "sharesOutstanding", "forwardPer", "eps", "analystRating",
+            "rsRating");
 
     private static final String DEFAULT_SORT = "symbol";
 

@@ -35,5 +35,7 @@ public record ScreenerFilters(String query,
                               BigDecimal maxForwardPer,
                               BigDecimal minEps,
                               /** Lower is better on this one: 1 is a strong buy, 5 a sell. */
-                              BigDecimal maxAnalystRating) {
+                              BigDecimal maxAnalystRating,
+                              /** Relative strength floor, 1-99. An 80 keeps the top fifth of the market. */
+                              Integer minRsRating) {
 }

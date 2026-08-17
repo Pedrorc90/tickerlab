@@ -52,6 +52,7 @@ public class ScreenerController {
             @RequestParam(required = false) BigDecimal maxForwardPer,
             @RequestParam(required = false) BigDecimal minEps,
             @RequestParam(required = false) BigDecimal maxAnalystRating,
+            @RequestParam(required = false) Integer minRsRating,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false) String sort,
@@ -59,7 +60,8 @@ public class ScreenerController {
         ScreenerFilters filters = new ScreenerFilters(q, exchange, minMarketCap, minPrice, maxPrice, minVolume,
                 minChange, maxChange, minPer, maxPer, maxPriceToBook, minDividendYield, minChange52w,
                 minFromHigh52w, minVsSma50, maxVsSma50, minVsSma200, maxVsSma200, maxFromLow52w,
-                minAvgVolume3m, minSharesOutstanding, minForwardPer, maxForwardPer, minEps, maxAnalystRating);
+                minAvgVolume3m, minSharesOutstanding, minForwardPer, maxForwardPer, minEps, maxAnalystRating,
+                minRsRating);
         return service.search(filters, page, size, sort, desc);
     }
 
