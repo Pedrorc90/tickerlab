@@ -801,7 +801,7 @@ function optionIndex(id: string, label: unknown): number {
       color: var(--chart-down);
     }
 
-    /* One column until a row is picked; a quarter and the rest once there is a chart to
+    /* One column until a row is picked; a narrow strip and the rest once there is a chart to
        show. Only this part splits — the filters above span both. */
     .body {
       display: grid;
@@ -811,7 +811,7 @@ function optionIndex(id: string, label: unknown): number {
     }
 
     :host(.narrow) .body {
-      grid-template-columns: 25% 1fr;
+      grid-template-columns: 15% 1fr;
     }
 
     .list {
