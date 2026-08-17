@@ -1,5 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  computed,
+  effect,
+  inject,
+  output,
+  signal,
+} from '@angular/core';
 import {
   FILTER_GROUPS,
   FilterGroup,
@@ -25,6 +34,22 @@ const MENU_HEIGHT = 260;
 /** Whether the filter panel was left open. UI state, so it stays in the browser. */
 const PANEL_OPEN_KEY = 'tickerlab.screenerFiltersOpen';
 
+/**
+ * How the table was left: the dropdowns off their "no filter" entry, the exchange, and the
+ * sorted column. One key for the lot, because they only make sense read together — restoring
+ * filters without their order shows the right rows in the wrong sequence. The ticker box is
+ * deliberately out: a search is what someone is doing now, not how they want the table set up.
+ */
+const VIEW_KEY = 'tickerlab.screenerView';
+
+/** What lands in `VIEW_KEY`. Everything optional: an older entry is missing the newer fields. */
+interface StoredView {
+  picks?: Record<string, number>;
+  exchange?: string;
+  sort?: SortField;
+  descending?: boolean;
+}
+
 /** Header cells, in the order they are drawn. Text sorts ascending, numbers descending. */
 const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean }> = [
   { field: 'symbol', label: 'Ticker', numeric: false },
@@ -38,6 +63,29 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
   { field: 'eps', label: 'BPA', numeric: true },
   { field: 'change52w', label: '52 sem.', numeric: true },
 ];
+
+/**
+ * Nothing stored is trusted as-is: a dropdown may have been renamed or lost a tier since the
+ * entry was written, and an unknown id or an index past the end of its options would send a
+ * bound the backend never asked for. Whatever fails a check is dropped, not the whole entry.
+ */
+function storedView(): StoredView {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') as StoredView;
+    const picks = Object.entries(saved.picks ?? {}).filter(([id, index]) => {
+      const select = RANGE_SELECTS.find((candidate) => candidate.id === id);
+      return select && Number.isInteger(index) && index > 0 && index < select.options.length;
+    });
+    return {
+      picks: Object.fromEntries(picks),
+      exchange: typeof saved.exchange === 'string' ? saved.exchange : '',
+      sort: COLUMNS.some(({ field }) => field === saved.sort) ? saved.sort : 'symbol',
+      descending: saved.descending === true,
+    };
+  } catch {
+    return { picks: {}, exchange: '', sort: 'symbol', descending: false };
+  }
+}
 
 @Component({
   selector: 'app-screener-panel',
@@ -56,10 +104,17 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
         (input)="onQuery($any($event.target).value)"
       />
 
-      <select class="filter-range" [value]="exchange()" (change)="onExchange($any($event.target).value)">
-        <option value="">Todos los mercados</option>
+      <!--
+        Both dropdowns mark the chosen entry with "selected" on the option instead of "value" on
+        the select. A select's value binding runs before the @for inside it creates any option,
+        so a restored value has nothing to land on and the select stays on its first entry —
+        showing "no filter" over a filter that is being applied. It never showed while the state
+        started empty: by the time a value exists, the dropdown has just been moved by hand.
+      -->
+      <select class="filter-range" (change)="onExchange($any($event.target).value)">
+        <option value="" [selected]="!exchange()">Todos los mercados</option>
         @for (option of exchanges(); track option) {
-          <option [value]="option">{{ option }}</option>
+          <option [value]="option" [selected]="option === exchange()">{{ option }}</option>
         }
       </select>
 
@@ -102,11 +157,12 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
               <select
                 class="filter-range"
                 [class.set]="picks()[select.id]"
-                [value]="picks()[select.id] ?? 0"
                 (change)="pick(select.id, +$any($event.target).value)"
               >
                 @for (option of select.options; track option.label; let i = $index) {
-                  <option [value]="i">{{ option.label }}</option>
+                  <option [value]="i" [selected]="i === (picks()[select.id] ?? 0)">
+                    {{ option.label }}
+                  </option>
                 }
               </select>
             }
@@ -721,17 +777,22 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly columns = COLUMNS;
   protected readonly groups = FILTER_GROUPS;
 
+  /** How the table was left last time, already checked over. Read once, at construction. */
+  private readonly restored = storedView();
+
   protected readonly rows = signal<ScreenerSymbol[]>([]);
   protected readonly exchanges = signal<string[]>([]);
+  /** Not stored: a session opens on the whole universe, not on yesterday's search. */
   protected readonly query = signal('');
-  protected readonly exchange = signal('');
+  protected readonly exchange = signal(this.restored.exchange ?? '');
   /** Which option each dropdown sits on, by id. Absent or 0 means "no filter". */
-  protected readonly picks = signal<Record<string, number>>({});
+  protected readonly picks = signal<Record<string, number>>(this.restored.picks ?? {});
   protected readonly panelOpen = signal(localStorage.getItem(PANEL_OPEN_KEY) === 'true');
+  /** Always the first page: with the filters restored, the page number they came from is noise. */
   protected readonly page = signal(0);
   protected readonly total = signal(0);
-  protected readonly sort = signal<SortField>('symbol');
-  protected readonly descending = signal(false);
+  protected readonly sort = signal<SortField>(this.restored.sort ?? 'symbol');
+  protected readonly descending = signal(this.restored.descending ?? false);
   protected readonly loading = signal(false);
   /** A quote sweep is running on the backend, whoever started it. */
   protected readonly refreshing = signal(false);
@@ -775,6 +836,18 @@ export class ScreenerPanelComponent implements OnDestroy {
   private pollTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
+    // Only the dropdowns actually narrowing something are written, so a filter added later
+    // starts on "no filter" instead of on an index saved before it existed.
+    effect(() => {
+      const picks = Object.entries(this.picks()).filter(([, index]) => index > 0);
+      const view: StoredView = {
+        picks: Object.fromEntries(picks),
+        exchange: this.exchange(),
+        sort: this.sort(),
+        descending: this.descending(),
+      };
+      localStorage.setItem(VIEW_KEY, JSON.stringify(view));
+    });
     void this.loadExchanges();
     void this.load();
   }

@@ -7,6 +7,7 @@ import {
   INDICATORS,
   Indicator,
   IndicatorPeriods,
+  PeriodKey,
   PeriodParam,
   TIMEFRAMES,
   Timeframe,
@@ -45,6 +46,36 @@ function storedIndicators(): ReadonlySet<Indicator> {
   }
 }
 
+/** Which periods were moved off the textbook value. UI state, so it stays in the browser. */
+const PERIODS_KEY = 'tickerlab.indicatorPeriods';
+
+/** Every editable param by key, so a stored number can be checked against its own bounds. */
+const PERIOD_PARAMS = new Map<string, PeriodParam>(
+  INDICATORS.flatMap(({ params }) => params.map((param) => [param.key as string, param])),
+);
+
+/**
+ * Same rule as the hidden indicators: what is stored is only what was moved off its default,
+ * so a param added in a later version starts on its textbook value instead of being missing
+ * from every map saved before it existed. Stored numbers are clamped again on the way in —
+ * the bounds may have tightened since, and a value outside them blanks the indicator out.
+ */
+function storedPeriods(): IndicatorPeriods {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PERIODS_KEY) ?? '{}') as Record<string, unknown>;
+    const moved = Object.entries(saved).flatMap(([key, value]) => {
+      const param = PERIOD_PARAMS.get(key);
+      if (!param || typeof value !== 'number' || !Number.isInteger(value)) {
+        return [];
+      }
+      return [[key, Math.min(param.max, Math.max(param.min, value))] as const];
+    });
+    return { ...DEFAULT_PERIODS, ...Object.fromEntries(moved) };
+  } catch {
+    return DEFAULT_PERIODS;
+  }
+}
+
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,8 +103,8 @@ export class App {
   protected readonly view = signal<View>('chart');
   /** Everything on for a first visit; after that, however the legend was left. */
   protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(storedIndicators());
-  /** Live periods, in memory only: a reload brings back the textbook defaults. */
-  protected readonly periods = signal<IndicatorPeriods>(DEFAULT_PERIODS);
+  /** Textbook periods on a first visit; after that, whatever the popovers were left on. */
+  protected readonly periods = signal<IndicatorPeriods>(storedPeriods());
   /** Which pill has its period popover open, if any. */
   protected readonly openPopover = signal<Indicator | null>(null);
   /** Descriptions under each pill. On the first visit they are shown; after that, as left. */
@@ -110,6 +141,12 @@ export class App {
       const visible = this.visibleIndicators();
       const hidden = INDICATORS.map(({ value }) => value).filter((value) => !visible.has(value));
       localStorage.setItem(HIDDEN_INDICATORS_KEY, JSON.stringify(hidden));
+    });
+    effect(() => {
+      const moved = Object.entries(this.periods()).filter(
+        ([key, value]) => value !== DEFAULT_PERIODS[key as PeriodKey],
+      );
+      localStorage.setItem(PERIODS_KEY, JSON.stringify(Object.fromEntries(moved)));
     });
     void this.load();
   }
