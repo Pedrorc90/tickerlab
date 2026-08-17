@@ -55,10 +55,13 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - **Añadir un tema nuevo** son dos sitios: una entrada en `THEMES` (`theme/theme.service.ts`, con las 24 claves de la paleta del chart) y un bloque `:root[data-theme='<id>']` con los 17 tokens de UI (`styles.css`). El servicio empuja la paleta del chart a `--chart-*`, así que las píldoras de la leyenda se pintan solas con los colores exactos de las series. Cambiar de tema **recrea el chart entero**: los colores de serie se fijan al crearlas y se pierde el zoom.
 
-## Pendiente de decidir
+## Cerrado, no rehacer
 
 - **Indicadores aparcados** (2026-08-16): la lista se ha vaciado — las EMA salieron en F9 y el ADX/DMI en F11. VWAP e Ichimoku descartados: el VWAP es intradía y los timeframes son día/semana/mes.
-- **Margen del alto del screener** (2026-08-16): con 25 filas y padding 0.25rem quedan 76 px libres en 1080p. Con barra de marcadores o una ventana más baja el scroll reaparece; bajar el padding a 0.22rem daría ~100 px de colchón. Sin decidir si compensa apretar más la fila o asumirlo.
-- **Tema Ámbar descartado** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
-- **Sector e industria en el screener** (2026-08-16): los pedía F2 y se quedaron fuera — el `quote` no los trae y sacarlos de `quoteSummary` son 5.956 llamadas. Sin decidir si compensa (¿carga perezosa solo de lo que se ve? ¿otra fuente?).
+- **Margen del alto del screener** (dado por bueno 2026-08-17): las 25 filas con padding 0.25rem se quedan como están, con sus 76 px libres en 1080p. Si en una ventana más baja reaparece el scroll, se asume; no se aprieta más la fila.
+- **Tema Ámbar** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
+- **Sector e industria en el screener** (descartado 2026-08-17): los pedía F2 y se quedan fuera para siempre — el `quote` no los trae y `quoteSummary` son 5.956 llamadas. No se buscará otra fuente ni carga perezosa: no se trabaja más sobre esto.
+
+## Pendiente de decidir
+
 - **Página del screener entre sesiones** (2026-08-17): F13 recuerda filtros y orden pero devuelve siempre a la página 1, porque un número de página no significa nada si el universo cambió tras un barrido. Sin decidir si alguna vez conviene restaurarla.
