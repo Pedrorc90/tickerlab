@@ -3,10 +3,9 @@
   grid-template-rows: auto auto 1fr;
   height: 100dvh;
   min-height: 0;
-  /* The chart screen fits the viewport exactly and never shows this. It is here for the
-     screener with a row open: the table keeps its 25 rows, so the detail below is reached
-     by scrolling rather than by shrinking the list. */
-  overflow-y: auto;
+  /* Both screens fit the viewport exactly: each pane scrolls its own content, so the page
+     behind them never grows a scrollbar of its own. */
+  overflow: hidden;
 }
 
 .topbar {
@@ -112,8 +111,9 @@ app-ticker-search {
   color: var(--on-accent);
 }
 
-/* The screener is the only child under the topbar, so it takes the two remaining rows
-   of the host grid instead of being squeezed into the quotebar's auto row. */
+/* The screener is the only child under the topbar, so it takes the two remaining rows of
+   the host grid instead of being squeezed into the quotebar's auto row. It splits itself
+   into list and detail, and each pane scrolls its own content, so the page never does. */
 app-screener-panel {
   grid-row: 2 / -1;
   min-height: 0;
@@ -186,21 +186,24 @@ app-price-chart {
   height: 100%;
 }
 
-/* ---- Screener detail: the picked row, drawn under the table ---- */
+/* ---- Screener detail: the picked row, drawn beside the list ---- */
 
-/* Same 1400px block the table sits in, so the pair reads as one column. */
+/* The right-hand three quarters, full height. Only a rule separates it from the list —
+   a rounded card floating in its own pane would draw a border the layout already has. */
 .detail {
-  width: min(1400px, 100%);
-  margin: 0 auto 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
   background: var(--bg-panel);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .detail-head {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 0.7rem;
   padding: 0.7rem 0.9rem;
   border-bottom: 1px solid var(--border);
@@ -297,6 +300,7 @@ app-price-chart {
 /* Fits as many as the width allows: 15 metrics wrap instead of scrolling sideways. */
 .metrics {
   display: grid;
+  flex: none;
   grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
   gap: 0.5rem 1rem;
   margin: 0;
@@ -317,11 +321,12 @@ app-price-chart {
   font-variant-numeric: tabular-nums;
 }
 
-/* Legend and chart, no watchlist column: the plus button in the table already covers that. */
+/* Legend and chart, no watchlist column: the plus button in the list already covers that.
+   Takes whatever the header and the metrics leave, down to 24rem — below that the pane
+   scrolls rather than squeezing the candles into a strip. */
 .detail-chart {
   display: grid;
   grid-template-columns: 10.8rem 1fr;
-  /* The chart draws in pixels, so the row it lives in has to state a height. */
-  height: 30rem;
+  flex: 1 0 24rem;
   min-height: 0;
 }

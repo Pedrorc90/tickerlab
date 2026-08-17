@@ -57,11 +57,12 @@
 </header>
 
 @if (view() === 'screener') {
+  <!-- The detail goes inside the panel, not after it: the two share a row that is a quarter
+       list and three quarters chart, and the filter bar above spans the pair. -->
   <app-screener-panel
     [selectedSymbol]="selectedRow()?.symbol ?? null"
     (selected)="onScreenerSelected($event)"
-  />
-
+  >
   <!-- Every number here rode in with the table's own page: picking a row costs one candles
        request and nothing else. -->
   @if (selectedRow(); as row) {
@@ -167,6 +168,7 @@
       </div>
     </section>
   }
+  </app-screener-panel>
 } @else {
 
 <section class="quotebar">

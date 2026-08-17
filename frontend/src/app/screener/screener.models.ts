@@ -159,6 +159,12 @@ export interface RangeOption {
 /** One dropdown: which fields its bounds land on, and the tiers it offers. */
 export interface RangeSelect {
   readonly id: string;
+  /**
+   * What the dropdown filters, drawn above it. It cannot live in the options: a select shows
+   * only the entry it sits on, so a chosen tier replaces whatever named the field — and
+   * «Precio por encima» is the very same text in the SMA 50 and the SMA 200 dropdowns.
+   */
+  readonly label: string;
   readonly group: FilterGroup;
   readonly minKey?: Bound;
   readonly maxKey?: Bound;
@@ -171,15 +177,17 @@ export const FILTER_GROUPS: readonly FilterGroup[] = ['Descriptivo', 'Fundamenta
 
 /**
  * The dropdowns, as data. Tiers follow the ones a screener usually offers, so a filter is
- * picked rather than typed. Option 0 is always "no filter".
+ * picked rather than typed. Option 0 is always "no filter", and it is worded as the absence
+ * of one rather than by naming the field: the field is on the label above, always visible.
  */
 export const RANGE_SELECTS: readonly RangeSelect[] = [
   {
     id: 'marketCap',
+    label: 'Capitalización',
     group: 'Descriptivo',
     minKey: 'minMarketCap',
     options: [
-      { label: 'Capitalización: toda' },
+      { label: 'Toda' },
       { label: 'Mega (200.000 M+)', min: 200_000_000_000 },
       { label: 'Grande (10.000 M+)', min: 10_000_000_000 },
       { label: 'Mediana (2.000 M+)', min: 2_000_000_000 },
@@ -189,11 +197,12 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'price',
+    label: 'Precio',
     group: 'Descriptivo',
     minKey: 'minPrice',
     maxKey: 'maxPrice',
     options: [
-      { label: 'Precio: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Menos de 5 $', max: 5 },
       { label: 'Menos de 20 $', max: 20 },
       { label: 'Más de 20 $', min: 20 },
@@ -203,10 +212,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'volume',
+    label: 'Volumen',
     group: 'Descriptivo',
     minKey: 'minVolume',
     options: [
-      { label: 'Volumen: todo' },
+      { label: 'Todo' },
       { label: '100 K+', min: 100_000 },
       { label: '500 K+', min: 500_000 },
       { label: '1 M+', min: 1_000_000 },
@@ -215,10 +225,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'avgVolume3m',
+    label: 'Vol. medio 3m',
     group: 'Descriptivo',
     minKey: 'minAvgVolume3m',
     options: [
-      { label: 'Vol. medio 3m: todo' },
+      { label: 'Todo' },
       { label: '200 K+ de media', min: 200_000 },
       { label: '1 M+ de media', min: 1_000_000 },
       { label: '5 M+ de media', min: 5_000_000 },
@@ -226,10 +237,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'sharesOutstanding',
+    label: 'Acciones',
     group: 'Descriptivo',
     minKey: 'minSharesOutstanding',
     options: [
-      { label: 'Acciones: cualquiera' },
+      { label: 'Cualquiera' },
       { label: '50 M+ en circulación', min: 50_000_000 },
       { label: '500 M+ en circulación', min: 500_000_000 },
       { label: '1.000 M+ en circulación', min: 1_000_000_000 },
@@ -237,11 +249,12 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'per',
+    label: 'PER',
     group: 'Fundamental',
     minKey: 'minPer',
     maxKey: 'maxPer',
     options: [
-      { label: 'PER: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Con beneficios (PER > 0)', min: 0 },
       { label: 'Bajo (< 15)', min: 0, max: 15 },
       { label: 'Moderado (15-25)', min: 15, max: 25 },
@@ -250,10 +263,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'priceToBook',
+    label: 'P/VC',
     group: 'Fundamental',
     maxKey: 'maxPriceToBook',
     options: [
-      { label: 'P/VC: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Bajo valor contable (< 1)', max: 1 },
       { label: 'Menos de 3', max: 3 },
       { label: 'Menos de 5', max: 5 },
@@ -261,10 +275,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'dividendYield',
+    label: 'Dividendo',
     group: 'Fundamental',
     minKey: 'minDividendYield',
     options: [
-      { label: 'Dividendo: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Reparte algo (> 0 %)', min: 0.0001 },
       { label: '2 % o más', min: 2 },
       { label: '4 % o más', min: 4 },
@@ -273,11 +288,12 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'forwardPer',
+    label: 'PER futuro',
     group: 'Fundamental',
     minKey: 'minForwardPer',
     maxKey: 'maxForwardPer',
     options: [
-      { label: 'PER futuro: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Bajo (< 15)', min: 0, max: 15 },
       { label: 'Moderado (15-25)', min: 15, max: 25 },
       { label: 'Alto (> 25)', min: 25 },
@@ -285,10 +301,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'eps',
+    label: 'BPA',
     group: 'Fundamental',
     minKey: 'minEps',
     options: [
-      { label: 'BPA: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'En beneficios (> 0)', min: 0.0001 },
       { label: '1 $ o más', min: 1 },
       { label: '5 $ o más', min: 5 },
@@ -296,11 +313,12 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'analystRating',
+    label: 'Analistas',
     group: 'Fundamental',
     maxKey: 'maxAnalystRating',
     options: [
       // Yahoo's scale runs 1 (strong buy) to 5 (sell), so every tier is a ceiling.
-      { label: 'Analistas: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Compra fuerte', max: 1.5 },
       { label: 'Compra o mejor', max: 2.5 },
       { label: 'Mantener o mejor', max: 3 },
@@ -310,10 +328,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
     // First of the technical group on purpose: in the IBD method the rating is what you
     // filter on before anything else, and the rest only narrows what it already picked.
     id: 'rsRating',
+    label: 'RS',
     group: 'Técnico',
     minKey: 'minRsRating',
     options: [
-      { label: 'RS: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'RS 70+', min: 70 },
       { label: 'RS 80+ (líder)', min: 80 },
       { label: 'RS 90+ (top 10 %)', min: 90 },
@@ -321,11 +340,12 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'change',
+    label: 'Hoy',
     group: 'Técnico',
     minKey: 'minChange',
     maxKey: 'maxChange',
     options: [
-      { label: 'Hoy: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Sube', min: 0 },
       { label: 'Sube +2 %', min: 2 },
       { label: 'Sube +5 %', min: 5 },
@@ -339,6 +359,7 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
     // fifth of the usual volume is nobody buying, and the absolute volume filter cannot tell
     // the two apart — it only ever selects big companies.
     id: 'relVolume',
+    label: 'Vol. relativo',
     group: 'Técnico',
     minKey: 'minRelVolume',
     maxKey: 'maxRelVolume',
@@ -346,7 +367,7 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
       // "Seco" is the opposite scan, not a smaller version of the ones above it: a stock
       // pinned to its 50-day on thin volume is a base, and the surge is what confirms it
       // breaking. Asking for both at once returns nothing, and should.
-      { label: 'Vol. relativo: cualquiera' },
+      { label: 'Cualquiera' },
       { label: '1,2× la media', min: 1.2 },
       { label: '1,5× la media', min: 1.5 },
       { label: '2× la media', min: 2 },
@@ -356,10 +377,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'change52w',
+    label: '52 semanas',
     group: 'Técnico',
     minKey: 'minChange52w',
     options: [
-      { label: '52 semanas: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'En positivo', min: 0 },
       { label: '+25 % o más', min: 25 },
       { label: '+50 % o más', min: 50 },
@@ -368,10 +390,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'fromHigh52w',
+    label: 'Máximo 52s',
     group: 'Técnico',
     minKey: 'minFromHigh52w',
     options: [
-      { label: 'Máximo 52s: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'A menos del 5 %', min: -5 },
       { label: 'A menos del 10 %', min: -10 },
       { label: 'A menos del 25 %', min: -25 },
@@ -379,10 +402,11 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'fromLow52w',
+    label: 'Mínimo 52s',
     group: 'Técnico',
     maxKey: 'maxFromLow52w',
     options: [
-      { label: 'Mínimo 52s: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'A menos del 10 % encima', max: 10 },
       { label: 'A menos del 25 % encima', max: 25 },
       { label: 'A menos del 50 % encima', max: 50 },
@@ -390,6 +414,7 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'vsSma50',
+    label: 'SMA 50',
     group: 'Técnico',
     minKey: 'minVsSma50',
     maxKey: 'maxVsSma50',
@@ -398,7 +423,7 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
       // different trade 3 % over its 50-day and 20 % over it. They sit after the two coarse
       // options rather than beside "por encima" because a saved view stores the index it
       // picked, and inserting in the middle would leave it filtering by another tier.
-      { label: 'SMA 50: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Precio por encima', min: 0 },
       { label: 'Precio por debajo', max: 0 },
       { label: 'Pegado (0-5 % encima)', min: 0, max: 5 },
@@ -408,11 +433,12 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
   },
   {
     id: 'vsSma200',
+    label: 'SMA 200',
     group: 'Técnico',
     minKey: 'minVsSma200',
     maxKey: 'maxVsSma200',
     options: [
-      { label: 'SMA 200: cualquiera' },
+      { label: 'Cualquiera' },
       { label: 'Precio por encima', min: 0 },
       { label: 'Precio por debajo', max: 0 },
     ],
