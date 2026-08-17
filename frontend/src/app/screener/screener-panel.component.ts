@@ -14,11 +14,16 @@ import {
   FILTER_GROUPS,
   FilterGroup,
   PAGE_SIZE,
+  PRESETS,
+  Preset,
   RANGE_SELECTS,
   ScreenerSymbol,
   SortField,
   filtersFrom,
+  picksOf,
+  relativeVolume,
   formatCompact,
+  formatMultiple,
   formatPercent,
   formatPrice,
   formatRatio,
@@ -55,14 +60,30 @@ interface StoredView {
   descending?: boolean;
 }
 
+interface Column {
+  /** Doubles as the CSS class and, unless derived, as the field the backend orders by. */
+  readonly field: SortField | 'relVolume';
+  readonly label: string;
+  readonly numeric: boolean;
+  /**
+   * Worked out in the browser from two other columns, so there is no field for the backend
+   * to order by and the header does not offer it: sorting the 25 rows on screen would claim
+   * to rank 5.956 and rank a page.
+   */
+  readonly derived?: boolean;
+}
+
 /** Header cells, in the order they are drawn. Text sorts ascending, numbers descending. */
-const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean }> = [
+const COLUMNS: readonly Column[] = [
   { field: 'symbol', label: 'Ticker', numeric: false },
   { field: 'name', label: 'Nombre', numeric: false },
   { field: 'exchange', label: 'Mercado', numeric: false },
   { field: 'price', label: 'Precio', numeric: true },
   { field: 'changePercent', label: 'Var. %', numeric: true },
   { field: 'volume', label: 'Volumen', numeric: true },
+  // Next to the volume it qualifies rather than at the end: read alone, 40 M says nothing
+  // about whether today is busy for this ticker, and the pair says it without arithmetic.
+  { field: 'relVolume', label: 'Vol. rel.', numeric: true, derived: true },
   { field: 'marketCap', label: 'Capitalización', numeric: true },
   { field: 'per', label: 'PER', numeric: true },
   { field: 'eps', label: 'BPA', numeric: true },
@@ -72,6 +93,10 @@ const COLUMNS: ReadonlyArray<{ field: SortField; label: string; numeric: boolean
 
 /** At or above this the stock is outrunning 80 % of the market: IBD's bar for a leader. */
 const RS_LEADER = 80;
+
+/** The two ends of the relative-volume filter, so the column marks what the dropdowns select. */
+const VOLUME_SURGE = 1.5;
+const VOLUME_DRY = 0.7;
 
 /**
  * Nothing stored is trusted as-is: a dropdown may have been renamed or lost a tier since the
@@ -88,7 +113,11 @@ function storedView(): StoredView {
     return {
       picks: Object.fromEntries(picks),
       exchange: typeof saved.exchange === 'string' ? saved.exchange : '',
-      sort: COLUMNS.some(({ field }) => field === saved.sort) ? saved.sort : 'symbol',
+      // A derived column never was a valid sort, so one saved by a future version of the
+      // table is dropped here rather than sent to a backend that cannot order by it.
+      sort: COLUMNS.some((column) => !column.derived && column.field === saved.sort)
+        ? saved.sort
+        : 'symbol',
       descending: saved.descending === true,
     };
   } catch {
@@ -159,6 +188,21 @@ function storedView(): StoredView {
 
     @if (panelOpen()) {
       <section class="filter-panel">
+        <div class="filter-group">
+          <span class="group-name">Escaneos</span>
+          @for (preset of presets; track preset.name) {
+            <button
+              type="button"
+              class="preset"
+              [class.on]="preset.name === activePreset()"
+              [title]="preset.hint"
+              (click)="applyPreset(preset)"
+            >
+              {{ preset.name }}
+            </button>
+          }
+        </div>
+
         @for (group of groups; track group) {
           <div class="filter-group">
             <span class="group-name">{{ group }}</span>
@@ -196,7 +240,8 @@ function storedView(): StoredView {
                 class="col-{{ column.field }}"
                 [class.numeric]="column.numeric"
                 [class.sorted]="sort() === column.field"
-                (click)="sortBy(column.field, column.numeric)"
+                [class.derived]="column.derived"
+                (click)="sortBy(column)"
               >
                 {{ column.label }}
                 @if (sort() === column.field) {
@@ -227,6 +272,15 @@ function storedView(): StoredView {
                 {{ percent(row.changePercent) }}
               </td>
               <td class="col-volume numeric">{{ compact(row.volume) }}</td>
+              <!-- Lit above the surge line and dimmed below it: the number only matters when
+                   today's interest is out of the ordinary in one direction or the other. -->
+              <td
+                class="col-relVolume numeric"
+                [class.up]="(relVolume(row) ?? 0) >= volumeSurge"
+                [class.quiet]="relVolume(row) !== null && (relVolume(row) ?? 0) <= volumeDry"
+              >
+                {{ multiple(relVolume(row)) }}
+              </td>
               <td class="col-marketCap numeric">{{ compact(row.marketCap) }}</td>
               <td class="col-per numeric">{{ ratio(row.per) }}</td>
               <td class="col-eps numeric" [class.down]="(row.eps ?? 0) < 0">{{ ratio(row.eps) }}</td>
@@ -397,6 +451,24 @@ function storedView(): StoredView {
       color: var(--text-strong);
     }
 
+    /* Shaped like the panel toggle because it is the same kind of control: a switch, not a link. */
+    .preset {
+      padding: 0.35rem 0.6rem;
+      border: 1px solid var(--border-control);
+      border-radius: 6px;
+      background: var(--bg-control);
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+
+    .preset:hover,
+    .preset.on {
+      border-color: var(--accent);
+      color: var(--text-strong);
+    }
+
     .badge {
       min-width: 1.1rem;
       padding: 0 0.25rem;
@@ -542,6 +614,14 @@ function storedView(): StoredView {
       color: var(--accent);
     }
 
+    /* No pointer and no hover: the header is a label here, and offering a click that does
+       nothing is worse than a column that never looked sortable. */
+    .symbols thead th.derived,
+    .symbols thead th.derived:hover {
+      color: var(--text-dim);
+      cursor: default;
+    }
+
     .arrow {
       margin-left: 0.2rem;
     }
@@ -602,7 +682,8 @@ function storedView(): StoredView {
       width: 7rem;
     }
 
-    .col-changePercent {
+    .col-changePercent,
+    .col-relVolume {
       width: 6rem;
     }
 
@@ -629,6 +710,11 @@ function storedView(): StoredView {
 
     .row td.down {
       color: var(--chart-down);
+    }
+
+    /* Dimmed, not coloured: dry volume is neither good nor bad, it is the absence of news. */
+    .row td.quiet {
+      color: var(--text-dim);
     }
 
     .empty {
@@ -814,10 +900,15 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly percent = formatPercent;
   protected readonly ratio = formatRatio;
   protected readonly compact = formatCompact;
+  protected readonly multiple = formatMultiple;
+  protected readonly relVolume = relativeVolume;
 
   protected readonly columns = COLUMNS;
   protected readonly rsLeader = RS_LEADER;
+  protected readonly volumeSurge = VOLUME_SURGE;
+  protected readonly volumeDry = VOLUME_DRY;
   protected readonly groups = FILTER_GROUPS;
+  protected readonly presets = PRESETS;
 
   /** How the table was left last time, already checked over. Read once, at construction. */
   private readonly restored = storedView();
@@ -860,6 +951,17 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly activeCount = computed(
     () => Object.values(this.picks()).filter((index) => index > 0).length,
   );
+
+  /** Which preset the dropdowns are sitting on, if any: what lights its button up. */
+  protected readonly activePreset = computed(() => {
+    const current = this.picks();
+    const set = Object.entries(current).filter(([, index]) => index > 0);
+    const match = PRESETS.find((preset) => {
+      const wanted = Object.entries(picksOf(preset));
+      return wanted.length === set.length && wanted.every(([id, index]) => current[id] === index);
+    });
+    return match?.name ?? null;
+  });
 
   /** Whether anything is narrowing the table, which is what the Limpiar button needs. */
   protected readonly filtered = computed(
@@ -995,6 +1097,16 @@ export class ScreenerPanelComponent implements OnDestroy {
     this.go(0);
   }
 
+  /**
+   * A preset replaces every dropdown instead of adding to what was there. Half of one screen
+   * left on top of another is the combination that returns nothing, and the dropdown it came
+   * from is off-screen by then, so there is no way to see why.
+   */
+  protected applyPreset(preset: Preset): void {
+    this.picks.set(picksOf(preset));
+    this.go(0);
+  }
+
   protected togglePanel(): void {
     this.panelOpen.update((open) => !open);
     localStorage.setItem(PANEL_OPEN_KEY, `${this.panelOpen()}`);
@@ -1011,12 +1123,16 @@ export class ScreenerPanelComponent implements OnDestroy {
    * Clicking the column already sorted flips it; a new one starts the way that column is
    * usually read — biggest first for numbers, A-Z for text.
    */
-  protected sortBy(field: SortField, numeric: boolean): void {
+  protected sortBy(column: Column): void {
+    if (column.derived) {
+      return;
+    }
+    const field = column.field as SortField;
     if (this.sort() === field) {
       this.descending.update((down) => !down);
     } else {
       this.sort.set(field);
-      this.descending.set(numeric);
+      this.descending.set(column.numeric);
     }
     this.go(0);
   }

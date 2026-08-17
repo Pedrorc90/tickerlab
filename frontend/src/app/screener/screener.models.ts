@@ -76,6 +76,23 @@ export function formatRatio(value: number | null): string {
   return value === null ? '—' : value.toFixed(1);
 }
 
+/** A multiple, not a count: the × is what stops «1,8» being read as 1,8 M de acciones. */
+export function formatMultiple(value: number | null): string {
+  return value === null ? '—' : `${value.toFixed(2)}×`;
+}
+
+/**
+ * Today's volume against the usual, worked out here rather than quoted: both halves already
+ * travel with the row, so the column costs no extra call. Null when there is no average to
+ * divide by — a fresh listing — which is the same case the filter drops on the server.
+ */
+export function relativeVolume(row: ScreenerSymbol): number | null {
+  if (row.volume === null || row.avgVolume3m === null || row.avgVolume3m <= 0) {
+    return null;
+  }
+  return row.volume / row.avgVolume3m;
+}
+
 export function formatCompact(value: number | null): string {
   if (value === null) {
     return '—';
@@ -123,6 +140,10 @@ export interface Filters {
   minEps: number | null;
   maxAnalystRating: number | null;
   minRsRating: number | null;
+  /** Today's volume as a multiple of the three-month average: 1.5 is half again the usual. */
+  minRelVolume: number | null;
+  /** The same ratio from above: 0.7 is a stock trading quietly, the way a base does. */
+  maxRelVolume: number | null;
 }
 
 /** The numeric half of the filters: what a dropdown can set. */
@@ -314,6 +335,26 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
     ],
   },
   {
+    // Right after today's move because it is the same question asked properly: a 3 % day on a
+    // fifth of the usual volume is nobody buying, and the absolute volume filter cannot tell
+    // the two apart — it only ever selects big companies.
+    id: 'relVolume',
+    group: 'Técnico',
+    minKey: 'minRelVolume',
+    maxKey: 'maxRelVolume',
+    options: [
+      // "Seco" is the opposite scan, not a smaller version of the ones above it: a stock
+      // pinned to its 50-day on thin volume is a base, and the surge is what confirms it
+      // breaking. Asking for both at once returns nothing, and should.
+      { label: 'Vol. relativo: cualquiera' },
+      { label: '1,2× la media', min: 1.2 },
+      { label: '1,5× la media', min: 1.5 },
+      { label: '2× la media', min: 2 },
+      { label: '3× la media', min: 3 },
+      { label: 'Seco (≤0,7× la media)', max: 0.7 },
+    ],
+  },
+  {
     id: 'change52w',
     group: 'Técnico',
     minKey: 'minChange52w',
@@ -353,9 +394,16 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
     minKey: 'minVsSma50',
     maxKey: 'maxVsSma50',
     options: [
+      // The tiers separate an entry with a short stop from a chase: the same ticker is a
+      // different trade 3 % over its 50-day and 20 % over it. They sit after the two coarse
+      // options rather than beside "por encima" because a saved view stores the index it
+      // picked, and inserting in the middle would leave it filtering by another tier.
       { label: 'SMA 50: cualquiera' },
       { label: 'Precio por encima', min: 0 },
       { label: 'Precio por debajo', max: 0 },
+      { label: 'Pegado (0-5 % encima)', min: 0, max: 5 },
+      { label: 'Cerca (0-15 % encima)', min: 0, max: 15 },
+      { label: 'Extendido (+15 %)', min: 15 },
     ],
   },
   {
@@ -370,6 +418,79 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
     ],
   },
 ];
+
+/**
+ * A saved screen: the dropdowns it moves, each named by the label of the option it lands on
+ * rather than by its index. Adding a tier reorders a list — it already happened to the SMA 50
+ * one — and an index would then quietly point a preset at a filter nobody chose.
+ */
+export interface Preset {
+  readonly name: string;
+  /** What the screen is after, shown on hover. */
+  readonly hint: string;
+  /** Dropdown id to the label of the option it should sit on. */
+  readonly picks: Readonly<Record<string, string>>;
+}
+
+/**
+ * Three screens rather than one, because they contradict each other on purpose: pinned to the
+ * 50-day on dry volume is a base still forming, and the same ticker on 1.5× volume is that
+ * base breaking. Asked for together they return nothing, and a single "va a subir" filter is
+ * exactly the thing that cannot exist.
+ */
+export const PRESETS: readonly Preset[] = [
+  {
+    name: 'Base seca',
+    hint: 'Líder consolidando pegado a la SMA 50 con el volumen apagado: la ruptura aún no ha llegado.',
+    picks: {
+      rsRating: 'RS 80+ (líder)',
+      fromHigh52w: 'A menos del 10 %',
+      vsSma200: 'Precio por encima',
+      vsSma50: 'Pegado (0-5 % encima)',
+      relVolume: 'Seco (≤0,7× la media)',
+      avgVolume3m: '1 M+ de media',
+    },
+  },
+  {
+    name: 'Ruptura',
+    hint: 'Se mueve hoy y con volumen detrás: la apuesta es que continúe.',
+    picks: {
+      rsRating: 'RS 80+ (líder)',
+      fromHigh52w: 'A menos del 5 %',
+      change: 'Sube +2 %',
+      relVolume: '1,5× la media',
+      vsSma50: 'Precio por encima',
+      vsSma200: 'Precio por encima',
+      price: 'Más de 20 $',
+      avgVolume3m: '1 M+ de media',
+    },
+  },
+  {
+    name: 'Retroceso',
+    hint: 'Cae hoy pero la tendencia sigue intacta: compra la debilidad, no la fuerza.',
+    picks: {
+      rsRating: 'RS 80+ (líder)',
+      vsSma200: 'Precio por encima',
+      vsSma50: 'Pegado (0-5 % encima)',
+      change: 'Baja −2 %',
+      change52w: '+25 % o más',
+      avgVolume3m: '1 M+ de media',
+    },
+  },
+];
+
+/** Where a preset leaves every dropdown. A label that matches nothing is left unfiltered. */
+export function picksOf(preset: Preset): Record<string, number> {
+  const picks: Record<string, number> = {};
+  for (const [id, label] of Object.entries(preset.picks)) {
+    const select = RANGE_SELECTS.find((candidate) => candidate.id === id);
+    const index = select ? select.options.findIndex((option) => option.label === label) : -1;
+    if (index > 0) {
+      picks[id] = index;
+    }
+  }
+  return picks;
+}
 
 /** Builds the request from the text box, the market box and where each dropdown sits. */
 export function filtersFrom(
@@ -404,6 +525,8 @@ export function filtersFrom(
     minEps: null,
     maxAnalystRating: null,
     minRsRating: null,
+    minRelVolume: null,
+    maxRelVolume: null,
   };
   for (const select of RANGE_SELECTS) {
     const option = select.options[picks[select.id] ?? 0];

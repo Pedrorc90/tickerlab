@@ -1,8 +1,10 @@
 package dev.tickerlab.screener;
 
 import dev.tickerlab.screener.dto.ScreenerFilters;
+import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -62,6 +64,22 @@ final class SymbolSpecs {
             atLeast(where, builder, root.get("eps"), filters.minEps());
             atMost(where, builder, root.get("analystRating"), filters.maxAnalystRating());
             atLeast(where, builder, root.get("rsRating"), filters.minRsRating());
+
+            // The one bound that reads two columns at once. Multiplied rather than divided: a
+            // ticker whose average is zero — freshly listed, or never traded — would take the
+            // query down with it instead of quietly dropping out of the result.
+            BigDecimal minRelVolume = filters.minRelVolume();
+            BigDecimal maxRelVolume = filters.maxRelVolume();
+            if (minRelVolume != null || maxRelVolume != null) {
+                Expression<BigDecimal> average = root.get("avgVolume3m").as(BigDecimal.class);
+                where.add(builder.gt(root.get("avgVolume3m"), 0L));
+                if (minRelVolume != null) {
+                    where.add(builder.ge(root.get("volume"), builder.prod(average, minRelVolume)));
+                }
+                if (maxRelVolume != null) {
+                    where.add(builder.le(root.get("volume"), builder.prod(average, maxRelVolume)));
+                }
+            }
 
             return where.isEmpty() ? null : builder.and(where.toArray(new Predicate[0]));
         };

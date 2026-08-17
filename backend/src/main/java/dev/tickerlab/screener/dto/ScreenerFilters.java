@@ -37,5 +37,17 @@ public record ScreenerFilters(String query,
                               /** Lower is better on this one: 1 is a strong buy, 5 a sell. */
                               BigDecimal maxAnalystRating,
                               /** Relative strength floor, 1-99. An 80 keeps the top fifth of the market. */
-                              Integer minRsRating) {
+                              Integer minRsRating,
+                              /**
+                               * Today's volume as a multiple of the three-month average: 1.5 asks for half
+                               * again the usual interest. A ratio and not a count, so it says the same thing
+                               * about a mega cap as about a small one.
+                               */
+                              BigDecimal minRelVolume,
+                              /**
+                               * The other end of the same ratio. A ceiling of 0.7 asks for a stock
+                               * trading quietly — what a base looks like before it breaks out, and the
+                               * opposite setup to the floor above rather than a variant of it.
+                               */
+                              BigDecimal maxRelVolume) {
 }
