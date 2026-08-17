@@ -44,7 +44,98 @@
 </header>
 
 @if (view() === 'screener') {
-  <app-screener-panel (selected)="onScreenerSelected($event)" />
+  <app-screener-panel
+    [selectedSymbol]="selectedRow()?.symbol ?? null"
+    (selected)="onScreenerSelected($event)"
+  />
+
+  <!-- Every number here rode in with the table's own page: picking a row costs one candles
+       request and nothing else. -->
+  @if (selectedRow(); as row) {
+    <section class="detail" aria-label="Detalle de la acción">
+      <header class="detail-head">
+        <span class="detail-symbol">{{ row.symbol }}</span>
+        <span class="detail-name">{{ row.name }}</span>
+        <span class="detail-exchange">{{ row.exchange }}</span>
+        <span class="detail-price">{{ price(row.price) }}</span>
+        <span
+          class="detail-change"
+          [class.up]="(row.changePercent ?? 0) > 0"
+          [class.down]="(row.changePercent ?? 0) < 0"
+        >
+          {{ percent(row.changePercent) }}
+        </span>
+
+        @if (loading()) {
+          <span class="detail-status">Cargando…</span>
+        }
+        @if (error(); as message) {
+          <span class="detail-status error">{{ message }}</span>
+        }
+
+        <button type="button" class="detail-action" (click)="openInChart()">
+          Abrir en Gráfico
+        </button>
+        <button type="button" class="detail-close" title="Cerrar el detalle" (click)="closeDetail()">
+          ✕
+        </button>
+      </header>
+
+      <dl class="metrics">
+        <div class="metric"><dt>Capitalización</dt><dd>{{ compact(row.marketCap) }}</dd></div>
+        <div class="metric"><dt>Volumen</dt><dd>{{ compact(row.volume) }}</dd></div>
+        <div class="metric"><dt>Vol. medio 3m</dt><dd>{{ compact(row.avgVolume3m) }}</dd></div>
+        <div class="metric"><dt>Acciones</dt><dd>{{ compact(row.sharesOutstanding) }}</dd></div>
+        <div class="metric"><dt>PER</dt><dd>{{ ratio(row.per) }}</dd></div>
+        <div class="metric"><dt>PER futuro</dt><dd>{{ ratio(row.forwardPer) }}</dd></div>
+        <div class="metric">
+          <dt>BPA</dt>
+          <dd [class.down]="(row.eps ?? 0) < 0">{{ ratio(row.eps) }}</dd>
+        </div>
+        <div class="metric"><dt>P/VC</dt><dd>{{ ratio(row.priceToBook) }}</dd></div>
+        <div class="metric"><dt>Dividendo</dt><dd>{{ percent(row.dividendYield) }}</dd></div>
+        <div class="metric">
+          <dt>52 semanas</dt>
+          <dd [class.up]="(row.change52w ?? 0) > 0" [class.down]="(row.change52w ?? 0) < 0">
+            {{ percent(row.change52w) }}
+          </dd>
+        </div>
+        <div class="metric"><dt>Desde máx. 52s</dt><dd>{{ percent(row.fromHigh52w) }}</dd></div>
+        <div class="metric"><dt>Sobre mín. 52s</dt><dd>{{ percent(row.fromLow52w) }}</dd></div>
+        <div class="metric">
+          <dt>vs SMA 50</dt>
+          <dd [class.up]="(row.vsSma50 ?? 0) > 0" [class.down]="(row.vsSma50 ?? 0) < 0">
+            {{ percent(row.vsSma50) }}
+          </dd>
+        </div>
+        <div class="metric">
+          <dt>vs SMA 200</dt>
+          <dd [class.up]="(row.vsSma200 ?? 0) > 0" [class.down]="(row.vsSma200 ?? 0) < 0">
+            {{ percent(row.vsSma200) }}
+          </dd>
+        </div>
+        <div class="metric"><dt>Analistas</dt><dd>{{ ratio(row.analystRating) }}</dd></div>
+      </dl>
+
+      <div class="detail-chart">
+        <app-indicator-legend
+          [visible]="visibleIndicators()"
+          [periods]="periods()"
+          [showHints]="showHints()"
+          (toggled)="toggleIndicator($event)"
+          (hintsToggled)="toggleHints()"
+          (periodChanged)="onPeriodChanged($event)"
+        />
+        <main class="chart-area">
+          <app-price-chart
+            [series]="series()"
+            [indicators]="visibleIndicators()"
+            [periods]="periods()"
+          />
+        </main>
+      </div>
+    </section>
+  }
 } @else {
 
 <section class="quotebar">
@@ -71,85 +162,14 @@
 </section>
 
 <div class="workspace">
-  <aside class="indicators" aria-label="Indicadores">
-    <div class="indicators-head">
-      <span class="indicators-title">Indicadores</span>
-      <button
-        type="button"
-        class="hints-toggle"
-        [class.on]="showHints()"
-        [attr.aria-pressed]="showHints()"
-        [title]="showHints() ? 'Ocultar descripciones' : 'Mostrar descripciones'"
-        (click)="toggleHints()"
-      >
-        ?
-      </button>
-    </div>
-
-    <span class="indicator-row static">
-      <span class="legend-toggle plain"><i class="swatch candle"></i> Velas</span>
-      @if (showHints()) {
-        <small class="indicator-hint">Precio de apertura, cierre, máximo y mínimo.</small>
-      }
-    </span>
-
-    @for (indicator of indicators; track indicator.value) {
-      <span class="indicator-row">
-        <span class="indicator-controls">
-          <button
-            type="button"
-            class="legend-toggle"
-            [class.off]="!visibleIndicators().has(indicator.value)"
-            [attr.aria-pressed]="visibleIndicators().has(indicator.value)"
-            [title]="
-              visibleIndicators().has(indicator.value)
-                ? 'Ocultar ' + indicator.label
-                : 'Mostrar ' + indicator.label
-            "
-            (click)="toggleIndicator(indicator.value)"
-          >
-            <i class="swatch {{ indicator.swatch }}"></i>
-            {{ labelOf(indicator.label, indicator.params) }}
-          </button>
-          @if (indicator.params.length) {
-            <button
-              type="button"
-              class="legend-config"
-              [class.open]="openPopover() === indicator.value"
-              [attr.aria-expanded]="openPopover() === indicator.value"
-              [title]="'Ajustar periodos de ' + indicator.label"
-              (click)="$event.stopPropagation(); togglePopover(indicator.value)"
-            >
-              ▾
-            </button>
-          }
-        </span>
-
-        @if (openPopover() === indicator.value) {
-          <div class="period-popover" (click)="$event.stopPropagation()">
-            @for (param of indicator.params; track param.key) {
-              <label class="period-field">
-                {{ param.label }}
-                <input
-                  #box
-                  type="number"
-                  [min]="param.min"
-                  [max]="param.max"
-                  [value]="periods()[param.key]"
-                  (click)="$event.stopPropagation()"
-                  (change)="box.value = setPeriod(param, box.value)"
-                />
-              </label>
-            }
-          </div>
-        }
-
-        @if (showHints()) {
-          <small class="indicator-hint">{{ indicator.hint }}</small>
-        }
-      </span>
-    }
-  </aside>
+  <app-indicator-legend
+    [visible]="visibleIndicators()"
+    [periods]="periods()"
+    [showHints]="showHints()"
+    (toggled)="toggleIndicator($event)"
+    (hintsToggled)="toggleHints()"
+    (periodChanged)="onPeriodChanged($event)"
+  />
 
   <main class="chart-area">
     <app-price-chart [series]="series()" [indicators]="visibleIndicators()" [periods]="periods()" />

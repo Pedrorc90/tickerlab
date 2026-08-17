@@ -6,6 +6,7 @@ import {
   computed,
   effect,
   inject,
+  input,
   output,
   signal,
 } from '@angular/core';
@@ -17,6 +18,10 @@ import {
   ScreenerSymbol,
   SortField,
   filtersFrom,
+  formatCompact,
+  formatPercent,
+  formatPrice,
+  formatRatio,
 } from './screener.models';
 import { ScreenerService } from './screener.service';
 import { Watchlist } from '../watchlist/watchlist.models';
@@ -200,7 +205,12 @@ function storedView(): StoredView {
         </thead>
         <tbody>
           @for (row of rows(); track row.symbol) {
-            <tr class="row" (click)="selected.emit(row.symbol)" [title]="'Ver ' + row.symbol + ' en el gráfico'">
+            <tr
+              class="row"
+              [class.picked]="selectedSymbol() === row.symbol"
+              (click)="selected.emit(row)"
+              [title]="'Ver el detalle de ' + row.symbol"
+            >
               <td class="col-symbol">{{ row.symbol }}</td>
               <td class="col-name">{{ row.name }}</td>
               <td class="col-exchange">{{ row.exchange }}</td>
@@ -536,6 +546,18 @@ function storedView(): StoredView {
       background: var(--bg-raised);
     }
 
+    /* The row the detail below belongs to. The left rule survives the hover background,
+       which is what keeps it findable after scrolling the table. */
+    .row.picked {
+      background: var(--bg-raised);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .row.picked td:first-child {
+      color: var(--text-strong);
+      font-weight: 600;
+    }
+
     /* 0.25rem, not 0.35rem: at 33px a row the 25 of a page overflow a 1080p window and the
        scrollbar comes back. This is the padding that makes a full page fit without one. */
     .row td {
@@ -771,8 +793,15 @@ function storedView(): StoredView {
   `,
 })
 export class ScreenerPanelComponent implements OnDestroy {
-  /** A clicked row sends the ticker back to the chart. */
-  readonly selected = output<string>();
+  /** A clicked row opens the detail below the table, so it sends the whole row, not the ticker. */
+  readonly selected = output<ScreenerSymbol>();
+  /** Which ticker the detail is showing, so its row stays marked while the table scrolls. */
+  readonly selectedSymbol = input<string | null>(null);
+
+  protected readonly price = formatPrice;
+  protected readonly percent = formatPercent;
+  protected readonly ratio = formatRatio;
+  protected readonly compact = formatCompact;
 
   protected readonly columns = COLUMNS;
   protected readonly groups = FILTER_GROUPS;
@@ -1014,38 +1043,6 @@ export class ScreenerPanelComponent implements OnDestroy {
     } finally {
       this.loadingUniverse.set(false);
     }
-  }
-
-  protected price(value: number | null): string {
-    return value === null ? '—' : value.toFixed(2);
-  }
-
-  protected percent(value: number | null): string {
-    return value === null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
-  }
-
-  /** A ratio Yahoo leaves out is a company with no earnings to divide by. */
-  protected ratio(value: number | null): string {
-    return value === null ? '—' : value.toFixed(1);
-  }
-
-  protected compact(value: number | null): string {
-    if (value === null) {
-      return '—';
-    }
-    if (value >= 1_000_000_000_000) {
-      return `${(value / 1_000_000_000_000).toFixed(2)} B`;
-    }
-    if (value >= 1_000_000_000) {
-      return `${(value / 1_000_000_000).toFixed(2)} MM`;
-    }
-    if (value >= 1_000_000) {
-      return `${(value / 1_000_000).toFixed(2)} M`;
-    }
-    if (value >= 1_000) {
-      return `${(value / 1_000).toFixed(1)} K`;
-    }
-    return `${value}`;
   }
 
   private async load(): Promise<void> {

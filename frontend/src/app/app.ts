@@ -11,11 +11,18 @@ import {
   PeriodParam,
   TIMEFRAMES,
   Timeframe,
-  periodSuffix,
 } from './market/market.models';
+import { IndicatorLegendComponent, PeriodChange } from './market/indicator-legend.component';
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
 import { ScreenerPanelComponent } from './screener/screener-panel.component';
+import {
+  ScreenerSymbol,
+  formatCompact,
+  formatPercent,
+  formatPrice,
+  formatRatio,
+} from './screener/screener.models';
 import { ThemePickerComponent } from './theme/theme-picker.component';
 import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
 
@@ -81,6 +88,7 @@ function storedPeriods(): IndicatorPeriods {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     TickerSearchComponent,
+    IndicatorLegendComponent,
     PriceChartComponent,
     ScreenerPanelComponent,
     WatchlistPanelComponent,
@@ -89,13 +97,14 @@ function storedPeriods(): IndicatorPeriods {
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',
-  // Clicking anywhere else dismisses an open period popover; the popover itself stops
-  // the event before it gets here.
-  host: { '(document:click)': 'openPopover.set(null)' },
 })
 export class App {
   protected readonly timeframes = TIMEFRAMES;
-  protected readonly indicators = INDICATORS;
+
+  protected readonly price = formatPrice;
+  protected readonly percent = formatPercent;
+  protected readonly ratio = formatRatio;
+  protected readonly compact = formatCompact;
 
   protected readonly symbol = signal(DEFAULT_SYMBOL);
   protected readonly timeframe = signal<Timeframe>('DAY');
@@ -105,8 +114,12 @@ export class App {
   protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(storedIndicators());
   /** Textbook periods on a first visit; after that, whatever the popovers were left on. */
   protected readonly periods = signal<IndicatorPeriods>(storedPeriods());
-  /** Which pill has its period popover open, if any. */
-  protected readonly openPopover = signal<Indicator | null>(null);
+  /**
+   * The row the screener detail is drawn from. Null means no row is picked and the table
+   * stands alone. Kept as the whole row, not the ticker: every number the detail shows came
+   * with the page the table already loaded, so it costs no extra request.
+   */
+  protected readonly selectedRow = signal<ScreenerSymbol | null>(null);
   /** Descriptions under each pill. On the first visit they are shown; after that, as left. */
   protected readonly showHints = signal(localStorage.getItem(SHOW_HINTS_KEY) !== 'false');
   protected readonly series = signal<CandleSeries | null>(null);
@@ -156,10 +169,18 @@ export class App {
     void this.load();
   }
 
-  /** Picking a row in the screener is a request to see that ticker, so the chart comes back. */
-  protected onScreenerSelected(symbol: string): void {
-    this.view.set('chart');
-    this.onSymbolSelected(symbol);
+  /**
+   * Picking a row opens its detail under the table instead of leaving the screen: the point
+   * of the screener is comparing candidates, and switching screens per ticker loses the list.
+   * Clicking the row that is already open closes the detail.
+   */
+  protected onScreenerSelected(row: ScreenerSymbol): void {
+    if (this.selectedRow()?.symbol === row.symbol) {
+      this.selectedRow.set(null);
+      return;
+    }
+    this.selectedRow.set(row);
+    this.onSymbolSelected(row.symbol);
   }
 
   protected showView(view: View): void {
@@ -174,33 +195,22 @@ export class App {
     this.visibleIndicators.set(next);
   }
 
-  /** `SMA 50`, `MACD 12/26/9`, plain `Volumen` — whatever the pill has to say right now. */
-  protected labelOf(label: string, params: ReadonlyArray<PeriodParam>): string {
-    const suffix = periodSuffix(params, this.periods());
-    return suffix ? `${label} ${suffix}` : label;
-  }
-
   protected toggleHints(): void {
     this.showHints.update((shown) => !shown);
   }
 
-  protected togglePopover(indicator: Indicator): void {
-    this.openPopover.update((open) => (open === indicator ? null : indicator));
+  /** The legend already clamped the value to the param's bounds; this only stores it. */
+  protected onPeriodChanged({ param, value }: PeriodChange): void {
+    this.periods.update((periods) => ({ ...periods, [param.key]: value }));
   }
 
-  /**
-   * Out-of-range or half-typed values would blank the indicator out, so the raw input is
-   * clamped to the param's bounds and anything unparseable falls back to the default.
-   * Returns what was kept so the input can show the clamped number instead of what was typed —
-   * a plain `[value]` binding would not repaint when the clamp lands on the previous value.
-   */
-  protected setPeriod(param: PeriodParam, raw: string): string {
-    const parsed = Number.parseInt(raw, 10);
-    const value = Number.isNaN(parsed)
-      ? param.defaultValue
-      : Math.min(param.max, Math.max(param.min, parsed));
-    this.periods.update((periods) => ({ ...periods, [param.key]: value }));
-    return `${value}`;
+  /** Sends the ticker the detail is showing to the chart screen, list and all left behind. */
+  protected openInChart(): void {
+    this.view.set('chart');
+  }
+
+  protected closeDetail(): void {
+    this.selectedRow.set(null);
   }
 
   protected onTimeframeSelected(timeframe: Timeframe): void {

@@ -27,6 +27,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - [x] **F13 — Filtros y periodos entre sesiones** (2026-08-17, probada en la app): los dos «pendiente de decidir» que compartían dilema, resueltos juntos y a favor de recordar. El screener guarda los desplegables activos, el mercado y la columna de orden en una sola clave (`tickerlab.screenerView`, van juntos: filtros sin su orden son las filas buenas en la secuencia mala); la página vuelve siempre a la 1 y **la caja de ticker no se guarda** — una búsqueda es lo que estás haciendo ahora, no cómo quieres la tabla. Los periodos, en `tickerlab.indicatorPeriods`. Lo leído de storage se valida contra `RANGE_SELECTS`/`COLUMNS` y se vuelve a clampear a los `min`/`max` del param: los límites pueden haberse estrechado desde que se escribió. Se cayó un bug que el estado vacío tapaba — ver la nota de los `<select>`.
 
+- [x] **F14 — Detalle de la acción bajo la tabla** (2026-08-17, probada en la app): clicar una fila deja de llevarte al gráfico y abre debajo un bloque con las 15 métricas de la fila más el chart completo con su leyenda; volver a clicarla lo cierra y «Abrir en Gráfico» sí cambia de pantalla. **No hay endpoint nuevo**: cada número del detalle viajó ya con la página que la tabla tenía cargada, así que seleccionar cuesta una sola llamada de velas. La leyenda de indicadores sale de `app.html` a `indicator-legend.component.ts` con sus estilos, porque ahora se pinta en dos sitios; cada instancia lleva su propio `openPopover`, si no un popover cerraría el del otro. La tabla se queda en 25 filas y el detalle se alcanza con scroll: encoger la lista al seleccionar es perder de vista justo lo que se estaba comparando.
+
 ## Notas
 
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
@@ -39,7 +41,7 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - **Universo de tickers de F2: Nasdaq Trader** (decidido 2026-08-15). Ficheros públicos y oficiales de valores listados (`nasdaqlisted.txt` + `otherlisted.txt`), sin API key, ~6.000 símbolos. Descartados: fichero estático del S&P 500 (500 nombres, se pudre a mano) y los `screener` de Yahoo (traen los campos ya filtrados, pero son aún menos documentados que el `chart`). Queda por concretar al abrir F2: esquema en Postgres y cadencia del job de refresco.
 
-- **Añadir un indicador nuevo** son tres sitios: una entrada en `INDICATORS` (`market.models.ts`, con su `overlay`), un `case` en `createPlot` (`price-chart.component.ts`) y el color de su píldora (`.swatch.<nombre>` en `app.css`, que hay que mantener igual al de la serie). El toggle de la leyenda y el reparto de alturas salen gratis. Si el indicador acompaña a otro en su panel (caso de la media de volumen), va como serie extra del `case` que ya existe: `overlay` solo distingue "panel del precio" de "panel propio".
+- **Añadir un indicador nuevo** son tres sitios: una entrada en `INDICATORS` (`market.models.ts`, con su `overlay`), un `case` en `createPlot` (`price-chart.component.ts`) y el color de su píldora (`.swatch.<nombre>` en `indicator-legend.component.ts`, que hay que mantener igual al de la serie). El toggle de la leyenda y el reparto de alturas salen gratis. Si el indicador acompaña a otro en su panel (caso de la media de volumen), va como serie extra del `case` que ya existe: `overlay` solo distingue "panel del precio" de "panel propio".
 
 - **Repo en GitHub** (2026-08-16): `Pedrorc90/tickerlab` como `origin`. Antes solo existía en local.
 
@@ -48,6 +50,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 - **Yahoo mezcla unidades en los porcentajes** (2026-08-16): `regularMarketChangePercent` y `fiftyTwoWeekChangePercent` vienen ya en porcentaje (2.42 = 2,42 %), pero los que comparan contra un máximo o una media vienen en fracción (0.0242). Se normaliza todo a porcentaje en `YahooQuoteClient.asPercent`.
 
 - **Añadir un filtro al screener** son cuatro sitios: la columna (migración + campo en `Symbol`), una línea en `SymbolSpecs`, el `@RequestParam` del controller con su hueco en `ScreenerFilters`, y una entrada en `RANGE_SELECTS` (`screener.models.ts`). El desplegable, el contador de activos y el botón Limpiar salen gratis. Si el filtro es sobre un campo nuevo de Yahoo, **mide antes su cobertura**: un campo que solo llega en el 10 % de los símbolos hace desaparecer al otro 90 % del resultado, porque `null >= x` es falso.
+
+- **La leyenda es un componente, no HTML de `app.html`** (2026-08-17, F14): `market/indicator-legend.component.ts` se lleva también sus estilos, que en `app.css` dejarían de aplicar en cuanto el HTML sale del componente `App`. El host va con `display: contents` para que el `<aside>` siga siendo hijo directo del grid que lo coloca. Añadir un indicador nuevo sigue siendo lo de siempre; el color de la píldora ahora vive en el `styles` de ese componente, no en `app.css`.
 
 - **Estado del navegador**: seis claves de `localStorage`, todas con el prefijo `tickerlab.` — tema, pestaña de watchlist abierta, descripciones de indicadores abiertas, indicadores apagados, periodos y vista del screener. Lo que se persiste es siempre lo que se apartó de lo normal, no el estado entero: solo los indicadores **apagados**, solo los periodos **movidos** de su valor de manual, solo los desplegables **activos**. Así, lo que se añada en una versión posterior nace en su estado normal en vez de faltar de todos los mapas guardados antes de existir. No hay `StorageService`: cada componente tiene su constante `_KEY` y un `effect()` que escribe.
 
@@ -66,4 +70,5 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 ## Pendiente de decidir
 
-- Nada abierto (2026-08-17). Las decisiones tomadas están arriba; el próximo trozo de trabajo sale de una fase nueva, no de esta lista.
+- **Temporalidad en el detalle del screener**: el selector día/semana/mes solo sale en la cabecera de la vista Gráfico, así que el chart del detalle dibuja con la que quedara puesta. ¿Se le pone su propio selector o se queda heredando?
+- **La selección entre sesiones**: `selectedRow` no se guarda, así que abrir el screener nunca trae un detalle abierto. Mismo dilema que se cerró en F13 a favor de recordar, pero aquí el precio es una llamada de velas al arrancar.

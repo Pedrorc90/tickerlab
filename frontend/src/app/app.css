@@ -3,6 +3,10 @@
   grid-template-rows: auto auto 1fr;
   height: 100dvh;
   min-height: 0;
+  /* The chart screen fits the viewport exactly and never shows this. It is here for the
+     screener with a row open: the table keeps its 25 rows, so the detail below is reached
+     by scrolling rather than by shrinking the list. */
+  overflow-y: auto;
 }
 
 .topbar {
@@ -172,242 +176,129 @@ app-price-chart {
   height: 100%;
 }
 
-.indicators {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  padding: 0.6rem 0.75rem;
-  overflow-y: auto;
+/* ---- Screener detail: the picked row, drawn under the table ---- */
+
+/* Same 1400px block the table sits in, so the pair reads as one column. */
+.detail {
+  width: min(1400px, 100%);
+  margin: 0 auto 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--bg-panel);
-  border-right: 1px solid var(--border);
-  color: var(--text-dim);
-  font-size: 0.72rem;
+  overflow: hidden;
 }
 
-.indicators-head {
+.detail-head {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--text-label);
-  font-size: 0.7rem;
+  align-items: baseline;
+  gap: 0.7rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-symbol {
+  color: var(--text-strong);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.detail-name {
+  color: var(--text-secondary);
+  /* The long ones give their room to the price rather than pushing it off the row. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-exchange {
+  color: var(--text-dim);
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
-.indicators-title {
-  flex: 1;
-}
-
-/* Shows and hides every description at once. */
-.hints-toggle {
-  width: 1.25rem;
-  height: 1.25rem;
-  flex: none;
-  border: 1px solid var(--border-control);
-  border-radius: 999px;
-  background: var(--bg-control);
-  color: var(--text-dim);
-  font: inherit;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.hints-toggle:hover {
+.detail-price {
+  margin-left: auto;
   color: var(--text-strong);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.hints-toggle.on {
-  border-color: var(--accent);
-  color: var(--accent);
+.detail-change {
+  font-variant-numeric: tabular-nums;
 }
 
-.indicator-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  /* Anchors the period popover to this row. */
-  position: relative;
+.detail-change.up,
+.metric dd.up {
+  color: var(--chart-up);
 }
 
-.indicator-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+.detail-change.down,
+.metric dd.down {
+  color: var(--chart-down);
 }
 
-.indicator-hint {
+.detail-status {
   color: var(--text-dim);
-  font-size: 0.68rem;
-  line-height: 1.35;
+  font-size: 0.75rem;
 }
 
-/* The candle entry is a label, not a switch: nothing to toggle without candles. */
-.legend-toggle.plain {
-  align-self: flex-start;
-  border-color: transparent;
-  background: transparent;
-  cursor: default;
+.detail-status.error {
+  color: var(--chart-down);
 }
 
-/* Sits flush against its pill so the pair reads as one control. */
-.legend-config {
-  padding: 0.15rem 0.35rem;
+.detail-action,
+.detail-close {
+  flex: none;
+  align-self: center;
+  padding: 0.25rem 0.6rem;
   border: 1px solid var(--border-control);
   border-radius: 999px;
   background: var(--bg-control);
   color: var(--text-dim);
   font: inherit;
-  line-height: 1.5;
+  font-size: 0.78rem;
+  line-height: 1.4;
   cursor: pointer;
   transition:
     background 0.15s ease,
     color 0.15s ease;
 }
 
-.legend-config:hover,
-.legend-config.open {
+.detail-action:hover,
+.detail-close:hover {
   background: var(--bg-control-hover);
   color: var(--text-strong);
 }
 
-/* Opens over the chart, to the right: the panel itself is too narrow to hold it. */
-.period-popover {
-  position: absolute;
-  top: 100%;
-  left: 0.5rem;
-  z-index: 10;
+/* Fits as many as the width allows: 15 metrics wrap instead of scrolling sideways. */
+.metrics {
   display: grid;
-  gap: 0.4rem;
-  padding: 0.6rem;
-  border: 1px solid var(--border-control);
-  border-radius: 6px;
-  background: var(--bg-raised);
-  box-shadow: 0 6px 20px var(--shadow);
-  cursor: default;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.period-field {
-  display: grid;
-  grid-template-columns: 4rem 4.5rem;
-  align-items: center;
-  gap: 0.5rem;
+.metric dt {
   color: var(--text-label);
-  white-space: nowrap;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.period-field input {
-  padding: 0.2rem 0.4rem;
-  border: 1px solid var(--border-control);
-  border-radius: 4px;
-  background: var(--bg-app);
-  color: var(--text-input);
-  font: inherit;
+.metric dd {
+  margin: 0.1rem 0 0;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-.period-field input:focus {
-  border-color: var(--border-focus);
-  outline: none;
-}
-
-/* A pill, so it reads as pressable next to the plain legend text. */
-.legend-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex: 1;
-  padding: 0.15rem 0.55rem;
-  border: 1px solid var(--border-control);
-  border-radius: 999px;
-  background: var(--bg-control);
-  color: var(--text-input);
-  font: inherit;
-  line-height: 1.5;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.legend-toggle:hover {
-  border-color: var(--border-focus);
-  color: var(--text-strong);
-}
-
-/* Switched off: still readable, clearly inactive. */
-.legend-toggle.off {
-  border-style: dashed;
-  background: transparent;
-  color: var(--text-dim);
-  text-decoration: line-through;
-}
-
-.legend-toggle.off .swatch {
-  filter: grayscale(1);
-  opacity: 0.6;
-}
-
-.swatch {
-  width: 0.65rem;
-  height: 0.65rem;
-  flex: none;
-  border-radius: 2px;
-}
-
-/* --chart-* comes from the theme service: same strings the chart itself draws with. */
-.swatch.candle {
-  background: linear-gradient(90deg, var(--chart-up) 50%, var(--chart-down) 50%);
-}
-
-.swatch.volume {
-  background: var(--chart-volume-up);
-}
-
-.swatch.rsi {
-  background: linear-gradient(180deg, var(--chart-rsi-strong) 50%, var(--chart-rsi-weak) 50%);
-}
-
-.swatch.sma50 {
-  background: var(--chart-sma-fast);
-}
-
-.swatch.sma200 {
-  background: var(--chart-sma-slow);
-}
-
-.swatch.ema20 {
-  background: var(--chart-ema-fast);
-}
-
-.swatch.ema50 {
-  background: var(--chart-ema-slow);
-}
-
-.swatch.bollinger {
-  background: linear-gradient(
-    180deg,
-    var(--chart-bollinger-band) 30%,
-    var(--chart-bollinger-basis) 30% 70%,
-    var(--chart-bollinger-band) 70%
-  );
-}
-
-.swatch.macd {
-  background: linear-gradient(90deg, var(--chart-macd-line) 50%, var(--chart-macd-signal) 50%);
-}
-
-.swatch.atr {
-  background: var(--chart-atr-line);
-}
-
-.swatch.adx {
-  background: linear-gradient(
-    90deg,
-    var(--chart-adx-plus-di) 33%,
-    var(--chart-adx-line) 33% 66%,
-    var(--chart-adx-minus-di) 66%
-  );
+/* Legend and chart, no watchlist column: the plus button in the table already covers that. */
+.detail-chart {
+  display: grid;
+  grid-template-columns: 10.8rem 1fr;
+  /* The chart draws in pixels, so the row it lives in has to state a height. */
+  height: 30rem;
+  min-height: 0;
 }

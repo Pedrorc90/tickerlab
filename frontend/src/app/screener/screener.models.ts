@@ -53,6 +53,42 @@ export interface RefreshResult {
 /** A page is what fits on screen at once: the table shows every row it gets, without scrolling. */
 export const PAGE_SIZE = 25;
 
+/**
+ * How the numbers read. They live here rather than in the table because the detail panel
+ * under it shows the same fields and has to write them the same way.
+ */
+export function formatPrice(value: number | null): string {
+  return value === null ? '—' : value.toFixed(2);
+}
+
+export function formatPercent(value: number | null): string {
+  return value === null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
+
+/** A ratio Yahoo leaves out is a company with no earnings to divide by. */
+export function formatRatio(value: number | null): string {
+  return value === null ? '—' : value.toFixed(1);
+}
+
+export function formatCompact(value: number | null): string {
+  if (value === null) {
+    return '—';
+  }
+  if (value >= 1_000_000_000_000) {
+    return `${(value / 1_000_000_000_000).toFixed(2)} B`;
+  }
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(2)} MM`;
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)} M`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)} K`;
+  }
+  return `${value}`;
+}
+
 /** Every bound the backend accepts. Null is "no filter" on every one of them. */
 export interface Filters {
   query: string;
