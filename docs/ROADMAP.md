@@ -62,6 +62,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 - **Tema Ámbar** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
 - **Sector e industria en el screener** (descartado 2026-08-17): los pedía F2 y se quedan fuera para siempre — el `quote` no los trae y `quoteSummary` son 5.956 llamadas. No se buscará otra fuente ni carga perezosa: no se trabaja más sobre esto.
 
+- **Página del screener entre sesiones** (decidido 2026-08-17): se queda volviendo a la página 1. Una página no es un sitio, es un tramo del orden: con el barrido moviendo precios, la «página 7» ya contiene otras acciones, y con los filtros recortando a cuatro páginas ni existe. Guardarla recortada al máximo válido es barato, pero no se hará sin pedirlo.
+
 ## Pendiente de decidir
 
-- **Página del screener entre sesiones** (2026-08-17): F13 recuerda filtros y orden pero devuelve siempre a la página 1, porque un número de página no significa nada si el universo cambió tras un barrido. Sin decidir si alguna vez conviene restaurarla.
+- Nada abierto (2026-08-17). Las decisiones tomadas están arriba; el próximo trozo de trabajo sale de una fase nueva, no de esta lista.
