@@ -29,6 +29,8 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 - [x] **F14 — Detalle de la acción bajo la tabla** (2026-08-17, probada en la app): clicar una fila deja de llevarte al gráfico y abre debajo un bloque con las 15 métricas de la fila más el chart completo con su leyenda; volver a clicarla lo cierra y «Abrir en Gráfico» sí cambia de pantalla. **No hay endpoint nuevo**: cada número del detalle viajó ya con la página que la tabla tenía cargada, así que seleccionar cuesta una sola llamada de velas. La leyenda de indicadores sale de `app.html` a `indicator-legend.component.ts` con sus estilos, porque ahora se pinta en dos sitios; cada instancia lleva su propio `openPopover`, si no un popover cerraría el del otro. La tabla se queda en 25 filas y el detalle se alcanza con scroll: encoger la lista al seleccionar es perder de vista justo lo que se estaba comparando.
 
+- [x] **F15 — Volumen relativo y escaneos guardados** (2026-08-17): el filtro que faltaba para leer un movimiento —volumen de hoy partido por la media de tres meses— con su columna al lado de Volumen, más tres botones «Escaneos» que colocan todos los desplegables de una vez. El bound es el único que compara dos columnas: va **multiplicado** (`volumen >= media × 1,5`) y no dividido, porque una media de cero tumbaría la consulta en vez de dejar la fila fuera. La columna se calcula en el navegador —ambas mitades ya viajaban en la fila— y por eso **no ordena**: ordenar las 25 filas de la página aparentaría rankear las 5.956. Los tres escaneos se contradicen a propósito (base seca ≤0,7× contra ruptura 1,5×): pedirlos juntos no devuelve nada, y un único filtro «va a subir» es justo lo que no puede existir. Un preset **reemplaza** todos los desplegables en vez de sumarse a lo que hubiera, y sus opciones se nombran por etiqueta y no por índice — insertar un tramo reordena la lista, que es lo que pasó con los tres nuevos de la SMA 50. Cae también el selector día/semana/mes en la cabecera del detalle, escribiendo sobre la señal de Gráfico y no sobre una propia.
+
 ## Notas
 
 - **Yahoo Finance es un endpoint no oficial**: sin API key, histórico desde los 80, precio del día con ~15 min de retardo. Si cambia, solo se toca `YahooMarketDataProvider`.
@@ -66,9 +68,10 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 - **Tema Ámbar** (2026-08-16): terminal negro y oro, construido y visto en la app; se quitó tras verlo. No rehacerlo sin pedirlo.
 - **Sector e industria en el screener** (descartado 2026-08-17): los pedía F2 y se quedan fuera para siempre — el `quote` no los trae y `quoteSummary` son 5.956 llamadas. No se buscará otra fuente ni carga perezosa: no se trabaja más sobre esto.
 
+- **Temporalidad en el detalle del screener** (decidido 2026-08-17, hecho en F15): selector propio en la cabecera del detalle, **sobre la misma señal** que el de Gráfico. Hereda la que hubiera puesta y lo que se cambie ahí manda también en la otra pantalla: dos estados separados obligarían a comprobar cuál manda antes de leer el chart. El tipo de gráfico sigue sin selector en el detalle.
+
 - **Página del screener entre sesiones** (decidido 2026-08-17): se queda volviendo a la página 1. Una página no es un sitio, es un tramo del orden: con el barrido moviendo precios, la «página 7» ya contiene otras acciones, y con los filtros recortando a cuatro páginas ni existe. Guardarla recortada al máximo válido es barato, pero no se hará sin pedirlo.
 
 ## Pendiente de decidir
 
-- **Temporalidad en el detalle del screener**: el selector día/semana/mes solo sale en la cabecera de la vista Gráfico, así que el chart del detalle dibuja con la que quedara puesta. ¿Se le pone su propio selector o se queda heredando?
 - **La selección entre sesiones**: `selectedRow` no se guarda, así que abrir el screener nunca trae un detalle abierto. Mismo dilema que se cerró en F13 a favor de recordar, pero aquí el precio es una llamada de velas al arrancar.

@@ -120,10 +120,15 @@ export class App {
   protected readonly compact = formatCompact;
 
   protected readonly symbol = signal(DEFAULT_SYMBOL);
+  /**
+   * Written from two places — the chart's top bar and the screener detail's header — on
+   * purpose: one selector each would let the two screens disagree, and then reading a chart
+   * starts with working out which one it obeyed.
+   */
   protected readonly timeframe = signal<Timeframe>('DAY');
   /**
-   * Candles on a first visit; after that, whatever shape was left. The screener detail has no
-   * selector of its own and reads this same one, the way it already does with the timeframe.
+   * Candles on a first visit; after that, whatever shape was left. Unlike the timeframe this
+   * one has no selector in the screener detail, which just reads it.
    */
   protected readonly chartType = signal<ChartType>(storedChartType());
   /** Which screen is up. Not stored: a session always opens on the chart. */

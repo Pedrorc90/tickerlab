@@ -257,6 +257,19 @@ app-price-chart {
   color: var(--chart-down);
 }
 
+/* Keeps the auto margin it inherits, so it lands on the right with the two buttons it shares
+   the row with. A size down from the top bar's copy: this is a block inside a page, not the
+   bar over it, and at full size it outweighs the ticker it belongs to. */
+.detail-timeframes {
+  align-self: center;
+  padding: 0.15rem;
+}
+
+.detail-timeframes .timeframe {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+}
+
 .detail-action,
 .detail-close {
   flex: none;

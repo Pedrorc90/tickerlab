@@ -86,6 +86,22 @@
           <span class="detail-status error">{{ message }}</span>
         }
 
+        <!-- The same signal the chart header writes, not a second one: the detail opens on the
+             timeframe you were last reading and moving it here is moving it everywhere. Two
+             selectors disagreeing would mean checking which one wins before reading the chart. -->
+        <div class="timeframes detail-timeframes" role="group" aria-label="Temporalidad">
+          @for (option of timeframes; track option.value) {
+            <button
+              type="button"
+              class="timeframe"
+              [class.active]="timeframe() === option.value"
+              (click)="onTimeframeSelected(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+
         <button type="button" class="detail-action" (click)="openInChart()">
           Abrir en Gráfico
         </button>
