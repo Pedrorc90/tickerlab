@@ -588,6 +588,14 @@ app-price-chart {
      is where the oldest bar sits: the right-hand side already has the price axis holding it
      off the edge. */
   .chart-area {
+    /* A stacking context of its own, and this is what makes the sheets touchable at all:
+       lightweight-charts gives its canvases z-index 2, the same the panels carry, and an
+       equal z-index is settled by document order — the legend is written before the chart,
+       so the transparent crosshair canvas sat in front of it and took the finger. Nothing
+       looked wrong, because the canvas that covers the sheet paints nothing. Boxing the
+       chart's own numbers in here keeps them from ever reaching the panels again. */
+    position: relative;
+    z-index: 0;
     padding: 0 0 0 1.25rem;
   }
 
