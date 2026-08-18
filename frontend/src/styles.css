@@ -63,6 +63,12 @@ body {
   margin: 0;
 }
 
+/* While a phone sheet is up the page stops being scrollable, so a drag inside the sheet has
+   nowhere else to go. Set from `App`, cleared the moment the sheet closes. */
+body.sheet-open {
+  overflow: hidden;
+}
+
 body {
   background: var(--bg-app);
   color: var(--text);

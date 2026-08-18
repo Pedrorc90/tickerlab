@@ -224,6 +224,12 @@ export class App {
   constructor() {
     effect(() => localStorage.setItem(SHOW_HINTS_KEY, `${this.showHints()}`));
 
+    // A sheet is over the chart, so the page under it holds still: on a phone the whole page
+    // is the scroller, and a drag the sheet does not take carries on into it — what the finger
+    // ends up moving is the chart behind. The class goes on the body because that is what
+    // scrolls; the shell only grows past the fold, it does not scroll itself.
+    effect(() => document.body.classList.toggle('sheet-open', this.sheet() !== null));
+
     // A window widened with a sheet up would leave it docked and floating at once: the panel
     // is back in its column the moment there is a column for it.
     effect(() => {
