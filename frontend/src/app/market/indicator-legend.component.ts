@@ -388,6 +388,12 @@ export interface PeriodChange {
         padding: 0.6rem 0.75rem;
         overflow-x: hidden;
         overflow-y: auto;
+        /* The sheet keeps the gesture: without this a drag that finds no more list to move
+           carries on into the page under it, and what the finger ends up scrolling is the
+           chart. `pan-y` says the same thing to the browser before the drag even starts, so
+           the chart's own touch handling never gets a look at it. */
+        overscroll-behavior: contain;
+        touch-action: pan-y;
         border-bottom: 0;
       }
 
