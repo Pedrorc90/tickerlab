@@ -378,6 +378,10 @@ export interface PeriodChange {
       :host(.pane) .indicators {
         flex: 1;
         flex-direction: column;
+        /* The strip above wraps; a column that also wraps is the reason the sheet would not
+           scroll — the pills spill into a second and a third column sideways instead of
+           overflowing downwards, so there is no vertical overflow left for a finger to drag. */
+        flex-wrap: nowrap;
         align-items: stretch;
         gap: 0.55rem;
         min-height: 0;
