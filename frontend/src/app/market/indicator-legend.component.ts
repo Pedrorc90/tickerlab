@@ -342,11 +342,15 @@ export interface PeriodChange {
     @media (max-width: 767px) {
       .indicators {
         flex-direction: row;
+        /* Wrapping and not a strip that scrolls sideways: a lateral drag over a single line
+           is a gesture nobody goes looking for, so half the indicators were simply gone. The
+           eleven pills take three lines at 360px, and the chart under them is guaranteed its
+           20rem either way. */
+        flex-wrap: wrap;
         align-items: center;
         gap: 0.4rem;
         padding: 0.4rem 0.6rem;
-        overflow-x: auto;
-        overflow-y: hidden;
+        overflow: visible;
         border-right: 0;
         border-bottom: 1px solid var(--border);
       }

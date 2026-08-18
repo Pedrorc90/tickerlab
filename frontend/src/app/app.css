@@ -532,7 +532,13 @@ app-price-chart {
     right: 0;
     bottom: 0;
     left: 0;
-    display: block;
+    /* Flex and not block, and said here as well as inside both panels: `:host(.pane)` there
+       and `.pane` here weigh exactly the same, so which one wins is decided by whichever
+       style tag the browser happens to insert last. As a block the list keeps the height of
+       its content inside a clipped host, so it never overflows *within* itself and there is
+       nothing for a finger to drag. */
+    display: flex;
+    flex-direction: column;
     max-height: 66%;
     /* Whatever is inside scrolls itself; without this the overflow simply hangs out of the
        panel and there is nothing for a finger to drag. */
