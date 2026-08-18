@@ -99,6 +99,9 @@ Fuente de verdad del plan por fases. Claude lo lee al inicio de sesión y lo act
 
 ## Pendiente de decidir
 
+- **El despliegue quedó a mitad de sembrar** (abierto 2026-08-18, F21): la app está en Render contra Neon y las dos cuentas entran, pero **Neon sigue sin datos** — faltan los 5.956 símbolos (se siembran abriendo el Screener o con `POST /api/screener/refresh`) y las tres watchlists locales, cuyo `INSERT` ya generado espera en el scratchpad de la sesión. Si ese fichero se pierde, se vuelve a generar leyendo el Postgres local, que las conserva. Queda por decidir si local y producción se quedan como dos mundos separados —cada uno con sus listas y su barrido— o si local pasa a apuntar a Neon y deja de haber dos.
+
+
 - **El bundle inicial pasa de su techo** (abierto 2026-08-17): `ng build` avisa de 574,26 kB sobre un máximo de 500 en `angular.json` (525,41 antes de F21, que sumó `FormsModule` y la pantalla de login). Es warning y no error, así que la build pasa; el grueso viene de antes de F18 y no de ningún cambio concreto. Las salidas son subir el techo (una línea) o sacar el screener a una ruta perezosa, que es lo que de verdad lo baja — pero eso significa meter el router, que hoy no existe.
 
 - **Exclusión de sectores en el escaneo** (abierto 2026-08-17, F18): el prompt del vídeo excluye biotech y nueve sectores más antes de puntuar, y la falta se ve —tres de los cinco ★ de «Crecimiento US» son biotech, nombres que se mueven por un binario clínico y no por negocio—. Aquí no se puede sin el sector, que está en «cerrado, no rehacer» desde F2: la única vía es reabrir aquello, y esa decisión no se toma de paso.
