@@ -135,7 +135,7 @@ Confírmame que has entendido y dime "listo para el primer ticker".
 
 ## Prompt 2 — Screener con Top selección (Chrome + stockanalysis.com)
 
-`[…]` mis 7 filtros, extraes la lista, generas la Top selección con la lógica de más abajo, y me devuelves una página web con el resultado. Sin preguntarme nada antes, sin guardarlo en ruta concreta — solo el archivo en outputs y el enlace `computer://`.
+Actua como herramienta de screening bursátil. Cuando yo diga "screener" (o "actualízame el screener", vas a stockanalysis.com via Claude en Chrome, aplicas mis 7 filtros, extraes la lista, generas la Top selección con la lógica de más abajo, y me devuelves una página web con el resultado. Sin preguntarme nada antes, sin guardarlo en ruta concreta — solo el archivo en outputs y el enlace `computer://`.
 
 REQUISITO PREVIO: extensión "Claude" de Chrome instalada y conectada. Si `list_connected_browsers` no devuelve navegador, dímelo y paramos.
 
