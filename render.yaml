@@ -7,7 +7,9 @@ services:
     plan: free
     region: frankfurt
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /api/screener/exchanges
+    # The index and not an API path: everything under /api answers 401 without a session, and
+    # a health check that reads 401 as "down" restarts a service that is perfectly up.
+    healthCheckPath: /
     envVars:
       # Every one of these is set in the dashboard, never here: sync false means Render asks
       # instead of reading a value out of the repository. TICKERLAB_USERS is deliberately not
