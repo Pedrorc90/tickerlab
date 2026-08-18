@@ -1,0 +1,14 @@
+# Anything built locally: the image builds its own, and a stale target/ would ship instead.
+backend/target/
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+.git/
+.idea/
+.vscode/
+*.iml
+
+# Local secrets never reach the build context.
+*.local.ps1
+*.local.env

@@ -8,6 +8,23 @@
   overflow: hidden;
 }
 
+/* Last in the bar and quiet on purpose: it is the one control nobody is looking for. */
+.sign-out {
+  padding: 0.35rem 0.7rem;
+  background: transparent;
+  border: 1px solid var(--border-control);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sign-out:hover {
+  background: var(--bg-control-hover);
+  color: var(--text);
+}
+
 .topbar {
   display: flex;
   align-items: center;

@@ -1,5 +1,14 @@
 server:
-  port: 8080
+  # The host hands the port over in an environment variable; 8080 is only the local default.
+  port: ${PORT:8080}
+  servlet:
+    session:
+      cookie:
+        # Off locally because the dev server is plain HTTP: a secure cookie there is a cookie
+        # the browser drops, and the login would never stick.
+        secure: ${TICKERLAB_SECURE_COOKIE:false}
+        http-only: true
+        same-site: lax
 
 spring:
   application:
@@ -9,6 +18,13 @@ spring:
     url: ${TICKERLAB_DB_URL:jdbc:postgresql://localhost:5433/tickerlab}
     username: ${TICKERLAB_DB_USER:tickerlab}
     password: ${TICKERLAB_DB_PASSWORD:tickerlab}
+    hikari:
+      # A serverless database only scales to zero once no connection is left open, so the pool
+      # is told to keep none. Three is plenty: the quote sweep is one thread and the app is two
+      # people. Sessions are in memory, so nothing wakes the database on a timer either.
+      minimum-idle: 0
+      maximum-pool-size: 3
+      idle-timeout: 60000
   jpa:
     hibernate:
       # Flyway owns the schema; Hibernate only checks it matches the entities.
@@ -16,6 +32,11 @@ spring:
     open-in-view: false
 
 tickerlab:
+  auth:
+    # name:password pairs, from the environment and never from this file: an account written
+    # into the repository is a published password. Empty by default on purpose — with no
+    # variable set nothing is seeded, and the accounts already in app_user still sign in.
+    seed-users: ${TICKERLAB_USERS:}
   yahoo:
     base-url: https://query1.finance.yahoo.com
   nasdaq-trader:

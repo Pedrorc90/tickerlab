@@ -1,5 +1,7 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { AuthService } from './auth/auth.service';
+import { LoginComponent } from './auth/login.component';
 import { MarketService } from './market/market.service';
 import {
   CHART_TYPES,
@@ -118,6 +120,7 @@ function storedPeriods(): IndicatorPeriods {
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    LoginComponent,
     TickerSearchComponent,
     IndicatorLegendComponent,
     PriceChartComponent,
@@ -130,6 +133,9 @@ function storedPeriods(): IndicatorPeriods {
   styleUrl: './app.css',
 })
 export class App {
+  /** Read by the template: nothing is painted until this says who is signed in. */
+  protected readonly auth = inject(AuthService);
+
   protected readonly timeframes = TIMEFRAMES;
   protected readonly chartTypes = CHART_TYPES;
 
@@ -233,9 +239,19 @@ export class App {
       const wanted = this.visibleIndicators().has('RS');
       const symbol = this.symbol();
       const timeframe = this.timeframe();
-      void this.loadBenchmark(wanted, symbol, timeframe);
+      if (this.auth.user()) {
+        void this.loadBenchmark(wanted, symbol, timeframe);
+      }
     });
-    void this.load();
+    // Nothing is fetched before there is a session: every call would come back 401 and the
+    // chart would sit behind the login screen painting an error. Untracked because `load`
+    // reads the ticker and the timeframe, and the handlers already reload on those.
+    effect(() => {
+      if (this.auth.user()) {
+        void untracked(() => this.load());
+      }
+    });
+    void this.auth.probe();
   }
 
   protected onSymbolSelected(symbol: string): void {

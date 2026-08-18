@@ -1,0 +1,23 @@
+# Render reads this on the first deploy. The database is not declared here: Neon is outside
+# Render, so its URL arrives as a secret set by hand in the dashboard.
+services:
+  - type: web
+    name: tickerlab
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/screener/exchanges
+    envVars:
+      # Every one of these is set in the dashboard, never here: sync false means Render asks
+      # instead of reading a value out of the repository. TICKERLAB_USERS is deliberately not
+      # among them: seeding from the environment would hold login passwords in clear text, and
+      # accounts go in as a BCrypt hash straight into app_user instead.
+      - key: TICKERLAB_DB_URL
+        sync: false
+      - key: TICKERLAB_DB_USER
+        sync: false
+      - key: TICKERLAB_DB_PASSWORD
+        sync: false
+      - key: TICKERLAB_SECURE_COOKIE
+        value: "true"

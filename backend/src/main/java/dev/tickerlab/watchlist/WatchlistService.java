@@ -1,5 +1,7 @@
 package dev.tickerlab.watchlist;
 
+import dev.tickerlab.user.AppUserRepository;
+import dev.tickerlab.user.CurrentUser;
 import dev.tickerlab.watchlist.dto.WatchlistEntryRequest;
 import dev.tickerlab.watchlist.dto.WatchlistResponse;
 import java.util.List;
@@ -7,18 +9,26 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Ownership is filtered here and not in the repository: the repository takes an owner id like
+ * any other parameter, and this is the one place that decides whose id that is.
+ */
 @Service
 public class WatchlistService {
 
     private final WatchlistRepository repository;
+    private final AppUserRepository users;
+    private final CurrentUser currentUser;
 
-    WatchlistService(WatchlistRepository repository) {
+    WatchlistService(WatchlistRepository repository, AppUserRepository users, CurrentUser currentUser) {
         this.repository = repository;
+        this.users = users;
+        this.currentUser = currentUser;
     }
 
     @Transactional(readOnly = true)
     public List<WatchlistResponse> list() {
-        return repository.findAllByOrderByCreatedAtAsc().stream()
+        return repository.findAllByOwnerIdOrderByCreatedAtAsc(currentUser.id()).stream()
                 .map(WatchlistResponse::from)
                 .toList();
     }
@@ -30,6 +40,7 @@ public class WatchlistService {
         Watchlist watchlist = new Watchlist();
         watchlist.setId(UUID.randomUUID());
         watchlist.setName(trimmed);
+        watchlist.setOwner(users.getReferenceById(currentUser.id()));
         return WatchlistResponse.from(repository.save(watchlist));
     }
 
@@ -64,12 +75,15 @@ public class WatchlistService {
         return WatchlistResponse.from(watchlist);
     }
 
+    /** Someone else's list is a 404 and not a 403: the id is not theirs to know about. */
     private Watchlist require(UUID id) {
-        return repository.findById(id).orElseThrow(() -> new WatchlistNotFoundException(id));
+        return repository.findByIdAndOwnerId(id, currentUser.id())
+                .orElseThrow(() -> new WatchlistNotFoundException(id));
     }
 
+    /** The name only has to be free for this user: two people can both keep a "Watching". */
     private void requireFreeName(String name) {
-        if (repository.existsByNameIgnoreCase(name)) {
+        if (repository.existsByOwnerIdAndNameIgnoreCase(currentUser.id(), name)) {
             throw new DuplicateWatchlistNameException(name);
         }
     }

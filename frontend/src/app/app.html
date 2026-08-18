@@ -1,3 +1,11 @@
+<!-- The gate. Everything under it needs a session, so it is one @if around the whole file
+     instead of a guard on every panel. `undefined` is the moment before /me answers and paints
+     nothing at all: starting on the login screen would flash it on every reload of a live
+     session. The body below keeps its own indentation — reindenting it would bury the change. -->
+@if (auth.user() === null) {
+  <app-login />
+} @else if (auth.user()) {
+
 <header class="topbar">
   <div class="brand">
     <span class="brand-mark">◧</span>
@@ -54,6 +62,10 @@
   </div>
 
   <app-theme-picker />
+
+  <button type="button" class="sign-out" (click)="auth.logout()">
+    {{ auth.user()?.username }} · Salir
+  </button>
 </header>
 
 @if (view() === 'screener') {
@@ -221,5 +233,7 @@
     (selected)="onSymbolSelected($event)"
   />
 </div>
+
+}
 
 }

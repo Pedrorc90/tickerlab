@@ -7,8 +7,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import dev.tickerlab.user.AppUser;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +19,7 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-/** A named list of tickers. No owner: this runs single-user against a local database. */
+/** A named list of tickers. The only thing in the app that belongs to someone. */
 @Entity
 @Table(name = "watchlist")
 public class Watchlist {
@@ -27,6 +29,15 @@ public class Watchlist {
 
     @Column(nullable = false, length = 60)
     private String name;
+
+    /**
+     * Nullable in the schema for the lists that predate the column, never null for a list this
+     * application creates. Lazy: the panel repaints from the list, and the owner is already the
+     * user asking.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private AppUser owner;
 
     /**
      * Entries are an element collection, not an entity: a ticker only exists inside the
@@ -51,6 +62,14 @@ public class Watchlist {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public AppUser getOwner() {
+        return owner;
+    }
+
+    public void setOwner(AppUser owner) {
+        this.owner = owner;
     }
 
     public String getName() {
