@@ -283,7 +283,9 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       },
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderColor: COLORS.border },
-      timeScale: { borderColor: COLORS.border, rightOffset: 4 },
+      // One bar of air after the last candle, not four: the gap is there so the newest bar is
+      // not welded to the price axis, and any more of it is width the chart is not drawing in.
+      timeScale: { borderColor: COLORS.border, rightOffset: 1 },
       autoSize: true,
     });
 

@@ -62,6 +62,16 @@ import { Theme, ThemeService } from './theme.service';
       border: 1px solid rgb(128 128 128 / 45%);
       border-radius: 2px;
     }
+
+    /* Sharing the top bar's first line with three other controls at 360px: the chips are the
+       choice anyway, and the label is only ever read once. Collapsing the type is what hides a
+       bare text node; the chip is sized in rem and does not follow it down. */
+    @media (max-width: 767px) {
+      .theme {
+        padding: 0.35rem 0.45rem;
+        font-size: 0;
+      }
+    }
   `,
 })
 export class ThemePickerComponent {

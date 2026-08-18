@@ -10,6 +10,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { ViewportService } from '../layout/viewport.service';
 import {
   FILTER_GROUPS,
   FilterGroup,
@@ -1290,6 +1291,51 @@ function optionIndex(id: string, label: unknown): number {
 
     /* Pinned under the scrolling list instead, not carried away by it: with 25 cards in a
        narrow column it would otherwise sit a screen and a half below the last row. */
+
+    /* ---- Phones ---- */
+
+    @media (max-width: 767px) {
+      .filters {
+        gap: 0.4rem;
+        padding: 0.5rem 0.6rem;
+      }
+
+      /* The one control worth a full line: everything else on the bar is a button or a count. */
+      .filter-text {
+        flex: 1 1 100%;
+        max-width: none;
+      }
+
+      .filter-panel {
+        padding: 0.5rem 0.6rem;
+      }
+
+      /* No chart beside the list at this width — the picked row covers the screen instead, so
+         the list keeps all of it and does not shrink to a strip behind the detail. */
+      :host(.narrow) .body {
+        grid-template-columns: 1fr;
+      }
+
+      /* The page took over the scrolling, so the list stops keeping one of its own: 25 cards
+         inside a box inside a screen is two scrollbars where a phone expects none. */
+      :host,
+      .list,
+      :host(.narrow) .table-wrap {
+        overflow: visible;
+      }
+
+      :host(.narrow) .table-wrap {
+        flex: none;
+      }
+
+      /* The filters follow the list down instead of scrolling away at the first card. */
+      .filters {
+        position: sticky;
+        z-index: 2;
+        top: 0;
+      }
+    }
+
     :host(.narrow) .pager {
       gap: 0.6rem;
       padding: 0.4rem;
@@ -1394,11 +1440,17 @@ export class ScreenerPanelComponent implements OnDestroy {
   /** Whether the menu is showing its "new list" box instead of the link. */
   protected readonly newList = signal(false);
 
+  private readonly viewport = inject(ViewportService);
+
   /**
    * Whether a row is open in the chart beside it, which is what decides the shape: a quarter
-   * of the screen holds cards, the whole of it holds the table it has always been.
+   * of the screen holds cards, the whole of it holds the table it has always been. A phone is
+   * that same quarter without anything beside it — twelve columns never fit there either, so
+   * it reads the cards whether or not a row is open.
    */
-  protected readonly narrow = computed(() => this.selectedSymbol() !== null);
+  protected readonly narrow = computed(
+    () => this.selectedSymbol() !== null || this.viewport.isMobile(),
+  );
 
   /** What the backend is being asked for right now. */
   protected readonly filters = computed(() =>

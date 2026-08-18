@@ -73,9 +73,28 @@ app-ticker-search {
   margin-left: 0;
 }
 
+/* One stroke weight and one size for every glyph in the bar, so the icons read as a set
+   rather than as four drawings that happen to sit together. */
+.icon {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .timeframe,
 .chart-type {
-  padding: 0.35rem 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* A single letter and a 16px drawing both need a floor, or the buttons come out three
+     different widths and the group stops reading as a row of equals. */
+  min-width: 2rem;
+  padding: 0.35rem 0.5rem;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -286,7 +305,8 @@ app-price-chart {
 }
 
 .detail-timeframes .timeframe {
-  padding: 0.2rem 0.6rem;
+  min-width: 1.6rem;
+  padding: 0.2rem 0.35rem;
   font-size: 0.78rem;
 }
 
@@ -346,4 +366,267 @@ app-price-chart {
   grid-template-columns: 10.8rem 1fr;
   flex: 1 0 24rem;
   min-height: 0;
+}
+
+/* ---- Phone sheets: the two docked panels, when there is no room to dock them ---- */
+
+/* Off at every width where the panels are columns of the workspace. Its grid row collapses
+   with it, so the three-row shell is unchanged on a desktop. */
+.sheet-bar {
+  display: none;
+}
+
+.sheet-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.sheet-tab.active {
+  background: var(--bg-control);
+  color: var(--text-strong);
+}
+
+/* Invisible on purpose: it is a hit target over the chart, not a scrim. Dimming the candles
+   would hide the thing the panel is being read against. */
+.sheet-backdrop {
+  display: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* ---- Tablets and small laptops: the columns stay, they just stop being generous ---- */
+
+@media (max-width: 1099px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  app-ticker-search {
+    flex-basis: 14rem;
+  }
+
+  /* Both panels give the chart back about four centimetres between them. The legend is at its
+     floor here: below this its labels start wrapping mid-word. */
+  .workspace {
+    grid-template-columns: 9.5rem 1fr 12rem;
+  }
+
+  .detail-chart {
+    grid-template-columns: 9.5rem 1fr;
+  }
+}
+
+/* ---- Phones: one column, and the side panels slide up over the chart ---- */
+
+@media (max-width: 767px) {
+  /* The desktop shell is a viewport with panes that scroll inside it. A phone cannot afford
+     that: the bars alone eat half the screen, and whatever is left has to hold everything.
+     So the page goes back to being a page — it grows past the fold and scrolls as a whole. */
+  :host {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .topbar {
+    gap: 0.4rem 0.5rem;
+    padding: 0.5rem 0.6rem;
+  }
+
+  /* Three rows out of one flex line: identity and the controls that leave the screen, then the
+     search box on its own, then the two groups that reshape the chart. Ordering here rather
+     than in the template keeps one topbar for every width. */
+  .brand {
+    order: 1;
+  }
+
+  .views {
+    order: 2;
+    margin-left: auto;
+  }
+
+  app-theme-picker {
+    order: 3;
+  }
+
+  .sign-out {
+    order: 4;
+    padding: 0.35rem 0.55rem;
+  }
+
+  /* Who is signed in is not news on a phone — there is one of them and they opened the app. */
+  .sign-out-user,
+  .brand-name {
+    display: none;
+  }
+
+  app-ticker-search {
+    order: 5;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .timeframes {
+    order: 6;
+    margin-left: 0;
+  }
+
+  .chart-types {
+    order: 7;
+  }
+
+  /* Seven buttons on one line at 360px only if they stop paying for the desktop's air. */
+  .timeframe,
+  .chart-type {
+    min-width: 1.8rem;
+    padding: 0.3rem 0.35rem;
+    font-size: 0.78rem;
+  }
+
+  .quotebar {
+    gap: 0.4rem 0.6rem;
+    padding: 0.45rem 0.6rem;
+  }
+
+  /* The name is the one thing here already spelled out by the ticker beside it. */
+  .quote-name {
+    display: none;
+  }
+
+  .quote-exchange,
+  .quote-status {
+    margin-left: 0;
+  }
+
+  /* The chart gets the whole column and the panels come off the flow: containing block for
+     the two of them and for the tap target that dismisses them. */
+  .workspace {
+    position: relative;
+    grid-template-columns: 1fr;
+    /* With the page scrolling, the chart has to claim a height of its own or it collapses to
+       nothing: two thirds of the screen, and never less than a readable block. */
+    height: 68dvh;
+    min-height: 19rem;
+    /* A parked panel sits one full height below the bottom edge; without this it would show
+       through the bar under it and drag the page taller. */
+    overflow: hidden;
+  }
+
+  /* Docked at the bottom edge, parked one height below it. Capped at two thirds so the candles
+     the panel is being read against never leave the screen entirely. */
+  .pane {
+    position: absolute;
+    z-index: 2;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    max-height: 66%;
+    /* Whatever is inside scrolls itself; without this the overflow simply hangs out of the
+       panel and there is nothing for a finger to drag. */
+    overflow: hidden;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 24px var(--shadow);
+    transform: translateY(101%);
+    /* Off the screen is not enough: a parked panel is still in the tab order, so it is hidden
+       outright and the visibility waits for the slide to finish before taking it back. */
+    visibility: hidden;
+    transition:
+      transform 0.22s ease,
+      visibility 0.22s;
+  }
+
+  .pane.open {
+    transform: none;
+    visibility: visible;
+  }
+
+  .sheet-backdrop {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    display: block;
+  }
+
+  /* Stays on the bottom edge while the page moves under it: the two panels are reachable
+     from anywhere in the scroll, not only from the top. */
+  .sheet-bar {
+    position: sticky;
+    z-index: 3;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+  }
+
+  .sheet-tab {
+    background: var(--bg-panel);
+  }
+
+  /* The canvas paints its own background, so this gutter is invisible — it just stops the
+     candles from being cut in half by the edge of the phone. Wider on the left because that
+     is where the oldest bar sits: the right-hand side already has the price axis holding it
+     off the edge. */
+  .chart-area {
+    padding: 0 0 0 1.25rem;
+  }
+
+  app-screener-panel {
+    overflow: visible;
+  }
+
+  /* The picked row takes the screen instead of a strip beside the list: at this width the two
+     of them side by side leave neither one readable. Its own ✕ is the way back to the table. */
+  .detail {
+    position: fixed;
+    z-index: 30;
+    inset: 0;
+    border-left: 0;
+  }
+
+  .detail-head {
+    gap: 0.4rem 0.6rem;
+    padding: 0.6rem;
+  }
+
+  .detail-name {
+    display: none;
+  }
+
+  .detail-timeframes {
+    order: 1;
+    margin-left: 0;
+  }
+
+  .detail-action,
+  .detail-close {
+    order: 2;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    gap: 0.4rem 0.7rem;
+    padding: 0.6rem;
+  }
+
+  /* Legend above the candles rather than beside them; the strip itself scrolls sideways. */
+  .detail-chart {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    flex: 1 0 20rem;
+  }
 }

@@ -17,6 +17,7 @@ import {
   Timeframe,
 } from './market/market.models';
 import { RS_BENCHMARK } from './market/indicators/relative-strength';
+import { ViewportService } from './layout/viewport.service';
 import { IndicatorLegendComponent, PeriodChange } from './market/indicator-legend.component';
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
@@ -33,6 +34,12 @@ import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
 
 /** The two screens the app has. */
 type View = 'chart' | 'screener';
+
+/**
+ * On a phone the two side panels have nowhere to dock, so they slide up over the chart one at
+ * a time. `null` is the ordinary state: the chart alone, which is what the screen is for.
+ */
+type Sheet = 'indicators' | 'watchlist' | null;
 
 /** Something recognisable has to be on screen before the user types anything. */
 const DEFAULT_SYMBOL = 'AAPL';
@@ -136,6 +143,9 @@ export class App {
   /** Read by the template: nothing is painted until this says who is signed in. */
   protected readonly auth = inject(AuthService);
 
+  /** Drives the decisions CSS cannot take on its own; the widths themselves live in the CSS. */
+  protected readonly viewport = inject(ViewportService);
+
   protected readonly timeframes = TIMEFRAMES;
   protected readonly chartTypes = CHART_TYPES;
 
@@ -166,6 +176,9 @@ export class App {
   protected readonly chartType = signal<ChartType>(storedChartType());
   /** Which screen is up. Not stored: a session always opens on the chart. */
   protected readonly view = signal<View>('chart');
+
+  /** Which panel is up over the chart on a phone. Never open on a screen wide enough to dock. */
+  protected readonly sheet = signal<Sheet>(null);
   /** Everything on for a first visit; after that, however the legend was left. */
   protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(storedIndicators());
   /** Textbook periods on a first visit; after that, whatever the popovers were left on. */
@@ -210,6 +223,14 @@ export class App {
 
   constructor() {
     effect(() => localStorage.setItem(SHOW_HINTS_KEY, `${this.showHints()}`));
+
+    // A window widened with a sheet up would leave it docked and floating at once: the panel
+    // is back in its column the moment there is a column for it.
+    effect(() => {
+      if (!this.viewport.isMobile()) {
+        untracked(() => this.sheet.set(null));
+      }
+    });
     effect(() => localStorage.setItem(CHART_TYPE_KEY, this.chartType()));
     // Closing the detail clears the key rather than storing a null: no selection is the
     // state a first visit is already in, and that one reads storage as absent.
@@ -256,6 +277,9 @@ export class App {
 
   protected onSymbolSelected(symbol: string): void {
     this.symbol.set(symbol);
+    // Whatever asked for this ticker — the search box or a watchlist row — the answer is the
+    // chart, so the sheet that was covering it gets out of the way.
+    this.sheet.set(null);
     void this.load();
   }
 
@@ -284,6 +308,16 @@ export class App {
 
   protected showView(view: View): void {
     this.view.set(view);
+    this.sheet.set(null);
+  }
+
+  /** Tapping the button of the panel already up closes it, the way a drawer handle behaves. */
+  protected toggleSheet(sheet: Exclude<Sheet, null>): void {
+    this.sheet.update((open) => (open === sheet ? null : sheet));
+  }
+
+  protected closeSheet(): void {
+    this.sheet.set(null);
   }
 
   protected toggleIndicator(indicator: Indicator): void {

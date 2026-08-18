@@ -47,7 +47,8 @@ import { AuthService } from './auth.service';
     .login {
       display: grid;
       place-items: center;
-      min-height: 100vh;
+      min-height: 100dvh;
+      padding: 1rem;
       background: var(--bg-app);
     }
 
@@ -55,7 +56,8 @@ import { AuthService } from './auth.service';
       display: flex;
       flex-direction: column;
       gap: 0.9rem;
-      width: 20rem;
+      /* Its own width until the screen is narrower than it, and then the screen's. */
+      width: min(20rem, 100%);
       padding: 1.75rem;
       background: var(--bg-panel);
       border: 1px solid var(--border);

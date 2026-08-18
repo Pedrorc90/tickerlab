@@ -1,10 +1,15 @@
 /** Chart granularity. Mirrors the backend `Timeframe` enum. */
 export type Timeframe = 'DAY' | 'WEEK' | 'MONTH';
 
-export const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
-  { value: 'DAY', label: 'Día' },
-  { value: 'WEEK', label: 'Semana' },
-  { value: 'MONTH', label: 'Mes' },
+/**
+ * `short` is what the buttons wear: three initials read as one control, where three words read
+ * as a sentence and take a third of the bar to say what a letter says. The full word stays for
+ * the tooltip and for anything that has room to spell it out.
+ */
+export const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string; short: string }> = [
+  { value: 'DAY', label: 'Día', short: 'D' },
+  { value: 'WEEK', label: 'Semana', short: 'S' },
+  { value: 'MONTH', label: 'Mes', short: 'M' },
 ];
 
 /**

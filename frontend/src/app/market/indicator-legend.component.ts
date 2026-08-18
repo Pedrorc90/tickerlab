@@ -41,13 +41,6 @@ export interface PeriodChange {
         </button>
       </div>
 
-      <span class="indicator-row static">
-        <span class="legend-toggle plain"><i class="swatch candle"></i> Velas</span>
-        @if (showHints()) {
-          <small class="indicator-hint">Precio de apertura, cierre, máximo y mínimo.</small>
-        }
-      </span>
-
       @for (indicator of indicators; track indicator.value) {
         <span class="indicator-row">
           <span class="indicator-controls">
@@ -184,14 +177,6 @@ export interface PeriodChange {
       line-height: 1.35;
     }
 
-    /* The candle entry is a label, not a switch: nothing to toggle without candles. */
-    .legend-toggle.plain {
-      align-self: flex-start;
-      border-color: transparent;
-      background: transparent;
-      cursor: default;
-    }
-
     /* Sits flush against its pill so the pair reads as one control. */
     .legend-config {
       padding: 0.15rem 0.35rem;
@@ -252,7 +237,6 @@ export interface PeriodChange {
       outline: none;
     }
 
-    /* A pill, so it reads as pressable next to the plain legend text. */
     .legend-toggle {
       display: inline-flex;
       align-items: center;
@@ -298,10 +282,6 @@ export interface PeriodChange {
     }
 
     /* --chart-* comes from the theme service: same strings the chart itself draws with. */
-    .swatch.candle {
-      background: linear-gradient(90deg, var(--chart-up) 50%, var(--chart-down) 50%);
-    }
-
     .swatch.volume {
       background: var(--chart-volume-up);
     }
@@ -354,6 +334,63 @@ export interface PeriodChange {
         var(--chart-adx-line) 33% 66%,
         var(--chart-adx-minus-di) 66%
       );
+    }
+
+    /* On a phone the legend appears in two shapes, and neither is the docked column. As the
+       chart screen's sheet it is a list that slides up; inside the screener detail, where there
+       is no sheet to open, it is a strip of pills over the candles that scrolls sideways. */
+    @media (max-width: 767px) {
+      .indicators {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.6rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      /* Every pill keeps its full width and the row scrolls, rather than each one shrinking
+         until its periods are unreadable. */
+      .indicator-row {
+        flex: none;
+      }
+
+      /* The strip is one line tall: a description under each pill would make it four. */
+      .indicators-head,
+      .indicator-hint {
+        display: none;
+      }
+
+      /* The sheet, on the other hand, has the height to be what it is on a desktop. A column
+         rather than a block: the shell caps the host's height, and only a flex child with a
+         floor of zero shrinks under that cap far enough to scroll instead of overflowing. */
+      :host(.pane) {
+        display: flex;
+        flex-direction: column;
+      }
+
+      :host(.pane) .indicators {
+        flex: 1;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.55rem;
+        min-height: 0;
+        padding: 0.6rem 0.75rem;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border-bottom: 0;
+      }
+
+      :host(.pane) .indicators-head,
+      :host(.pane) .indicator-hint {
+        display: revert;
+      }
+
+      :host(.pane) .indicators-head {
+        display: flex;
+      }
     }
   `,
 })

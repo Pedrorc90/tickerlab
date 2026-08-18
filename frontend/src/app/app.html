@@ -21,22 +21,57 @@
           type="button"
           class="timeframe"
           [class.active]="timeframe() === option.value"
+          [title]="option.label"
+          [attr.aria-label]="option.label"
           (click)="onTimeframeSelected(option.value)"
         >
-          {{ option.label }}
+          {{ option.short }}
         </button>
       }
     </div>
 
+    <!-- Four words saying what four drawings show. The name rides along as the tooltip and as
+         the accessible name, so nothing is lost by not spelling it out. -->
     <div class="chart-types" role="group" aria-label="Tipo de gráfico">
       @for (option of chartTypes; track option.value) {
         <button
           type="button"
           class="chart-type"
           [class.active]="chartType() === option.value"
+          [title]="option.label"
+          [attr.aria-label]="option.label"
           (click)="onChartTypeSelected(option.value)"
         >
-          {{ option.label }}
+          @switch (option.value) {
+            @case ('CANDLES') {
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M5 1.5v2.5M5 11v3.5M11 2.5v2M11 11.5v2.5" />
+                <rect x="3" y="4" width="4" height="7" rx="1" />
+                <rect x="9" y="4.5" width="4" height="7" rx="1" />
+              </svg>
+            }
+            @case ('BARS') {
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M5 1.5v13M5 5H2.2M5 9.5h2.4M11 3v10M11 6.5H8.6M11 11h2.6" />
+              </svg>
+            }
+            @case ('LINE') {
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M2 11l3-4 3 2.5 3-5 3 3.5" />
+              </svg>
+            }
+            @case ('AREA') {
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M2 11l3-4 3 2.5 3-5 3 3.5V14H2z"
+                  fill="currentColor"
+                  fill-opacity="0.25"
+                  stroke="none"
+                />
+                <path d="M2 11l3-4 3 2.5 3-5 3 3.5" />
+              </svg>
+            }
+          }
         </button>
       }
     </div>
@@ -64,7 +99,7 @@
   <app-theme-picker />
 
   <button type="button" class="sign-out" (click)="auth.logout()">
-    {{ auth.user()?.username }} · Salir
+    <span class="sign-out-user">{{ auth.user()?.username }} · </span>Salir
   </button>
 </header>
 
@@ -109,9 +144,11 @@
               type="button"
               class="timeframe"
               [class.active]="timeframe() === option.value"
+              [title]="option.label"
+              [attr.aria-label]="option.label"
               (click)="onTimeframeSelected(option.value)"
             >
-              {{ option.label }}
+              {{ option.short }}
             </button>
           }
         </div>
@@ -207,8 +244,13 @@
   }
 </section>
 
+<!-- Three docked columns on a desktop. On a phone the two side panels leave the flow and
+     slide up over the chart instead, which is why they carry `pane`: same components, same
+     bindings, and only the CSS knows the difference. -->
 <div class="workspace">
   <app-indicator-legend
+    class="pane"
+    [class.open]="sheet() === 'indicators'"
     [visible]="visibleIndicators()"
     [periods]="periods()"
     [showHints]="showHints()"
@@ -228,11 +270,48 @@
   </main>
 
   <app-watchlist-panel
+    class="pane"
+    [class.open]="sheet() === 'watchlist'"
     [currentSymbol]="symbol()"
     [currentName]="series()?.name ?? null"
     (selected)="onSymbolSelected($event)"
   />
+
+  <!-- Tapping the chart behind an open sheet closes it rather than reaching the chart: the
+       gesture people already have for a panel in the way. Only exists while one is open. -->
+  @if (sheet()) {
+    <button type="button" class="sheet-backdrop" aria-label="Cerrar el panel" (click)="closeSheet()"></button>
+  }
 </div>
+
+<!-- The phone's only way back to the two panels. Hidden at every width where they are docked,
+     and its grid row collapses with it. -->
+<nav class="sheet-bar" aria-label="Paneles">
+  <button
+    type="button"
+    class="sheet-tab"
+    [class.active]="sheet() === 'indicators'"
+    (click)="toggleSheet('indicators')"
+  >
+    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M4 2v3M4 9v5M12 2v6M12 12v2" />
+      <circle cx="4" cy="7" r="1.7" />
+      <circle cx="12" cy="10" r="1.7" />
+    </svg>
+    Indicadores
+  </button>
+  <button
+    type="button"
+    class="sheet-tab"
+    [class.active]="sheet() === 'watchlist'"
+    (click)="toggleSheet('watchlist')"
+  >
+    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2.5 4h.01M2.5 8h.01M2.5 12h.01M6 4h7.5M6 8h7.5M6 12h7.5" />
+    </svg>
+    Mis listas
+  </button>
+</nav>
 
 }
 

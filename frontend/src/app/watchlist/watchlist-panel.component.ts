@@ -308,6 +308,16 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       color: var(--text-dim);
       font-size: 0.72rem;
     }
+
+    /* As a sheet it is the same panel, only it arrives from the bottom instead of the right.
+       The shell caps its height and draws the edge; all that is left here is staying a column
+       — the shell's blanket display: block would drop the entries' own scroll. */
+    @media (max-width: 767px) {
+      :host(.pane) {
+        display: flex;
+        border-left: 0;
+      }
+    }
   `,
 })
 export class WatchlistPanelComponent {
