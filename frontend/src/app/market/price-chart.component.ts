@@ -32,6 +32,8 @@ import {
 import { ADX_TREND_THRESHOLD, averageDirectionalIndex } from './indicators/adx';
 import { averageTrueRange } from './indicators/atr';
 import { bollingerBands } from './indicators/bollinger';
+import { CloudSeries } from './indicators/cloud-series';
+import { ichimoku } from './indicators/ichimoku';
 import { macd } from './indicators/macd';
 import {
   exponentialMovingAverage,
@@ -48,6 +50,7 @@ import {
   INDICATORS,
   Indicator,
   IndicatorPeriods,
+  IndicatorPoint,
   periodSuffix,
 } from './market.models';
 import { ThemeService } from '../theme/theme.service';
@@ -69,6 +72,7 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
   EMA20: 0,
   EMA50: 0,
   BOLLINGER: 0,
+  ICHIMOKU: 0,
   RS: 0,
 };
 
@@ -522,6 +526,77 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
         };
       }
 
+      case 'ICHIMOKU': {
+        // Order here is drawing order. The cloud is a filled band, so it goes in first and
+        // every line lands on top of it; the candles are already underneath, which is why
+        // both fills are near-transparent.
+        const cloud = chart.addCustomSeries(
+          new CloudSeries(),
+          {
+            upFill: COLORS.ichimokuCloudUp,
+            downFill: COLORS.ichimokuCloudDown,
+            priceLineVisible: false,
+            lastValueVisible: false,
+          },
+          PRICE_PANE,
+        );
+
+        const line = (color: string, lineWidth: 1 | 2, lineStyle = LineStyle.Solid) =>
+          chart.addSeries(
+            LineSeries,
+            {
+              color,
+              lineWidth,
+              lineStyle,
+              priceLineVisible: false,
+              lastValueVisible: false,
+              crosshairMarkerVisible: false,
+            },
+            PRICE_PANE,
+          );
+
+        // The two spans are hairlines: the band between them is what gets read, and the edges
+        // only say where it turns. Conversion and base are thicker — those two are crossed.
+        // The lagging span is dashed because it sits where no candle does any more.
+        const spanA = line(COLORS.ichimokuSpanA, 1);
+        const spanB = line(COLORS.ichimokuSpanB, 1);
+        const base = line(COLORS.ichimokuBase, 2);
+        const conversion = line(COLORS.ichimokuConversion, 2);
+        const lagging = line(COLORS.ichimokuLagging, 1, LineStyle.Dashed);
+
+        return {
+          series: [cloud, spanA, spanB, base, conversion, lagging],
+          signature,
+          setData: (candles) => {
+            const lines = ichimoku(
+              candles,
+              periods.ichimokuConversion,
+              periods.ichimokuBase,
+              periods.ichimokuSpan,
+            );
+            const asLine = (points: IndicatorPoint[]) =>
+              points.map((point) => ({ time: point.time as UTCTimestamp, value: point.value }));
+
+            cloud.setData(
+              lines.cloud.map((point) => ({
+                time: point.time as UTCTimestamp,
+                spanA: point.spanA,
+                spanB: point.spanB,
+              })),
+            );
+            spanA.setData(
+              lines.cloud.map((point) => ({ time: point.time as UTCTimestamp, value: point.spanA })),
+            );
+            spanB.setData(
+              lines.cloud.map((point) => ({ time: point.time as UTCTimestamp, value: point.spanB })),
+            );
+            base.setData(asLine(lines.base));
+            conversion.setData(asLine(lines.conversion));
+            lagging.setData(asLine(lines.lagging));
+          },
+        };
+      }
+
       case 'RS': {
         // Thicker than the moving averages around it: this one is read on its own, as a
         // shape, not compared bar by bar against the price underneath.
@@ -813,11 +888,20 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       const visibleBars = Math.max(1, Math.round(candles.length * INITIAL_VISIBLE_FRACTION));
       this.chart?.timeScale().setVisibleLogicalRange({
         from: candles.length - visibleBars,
-        to: candles.length - 1 + RIGHT_MARGIN_BARS,
+        to: candles.length - 1 + RIGHT_MARGIN_BARS + this.projectedBars(),
       });
       this.releasePriceScale();
     }
     this.framedSeries = series;
+  }
+
+  /**
+   * How many bars sit past the last candle. Only Ichimoku puts anything there — its cloud is
+   * drawn `base` bars ahead — and the opening frame has to leave room for it, or the one part
+   * of the indicator meant to be read before the price arrives opens off screen.
+   */
+  private projectedBars(): number {
+    return this.indicators().has('ICHIMOKU') ? this.periods().ichimokuBase : 0;
   }
 
   /**

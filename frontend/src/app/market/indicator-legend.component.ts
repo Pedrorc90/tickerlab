@@ -315,6 +315,14 @@ export interface PeriodChange {
       );
     }
 
+    /* The kumo in miniature: green over red, with the conversion line across it. */
+    .swatch.ichimoku {
+      background:
+        linear-gradient(90deg, var(--chart-ichimoku-conversion) 0 100%) center / 100% 2px
+          no-repeat,
+        linear-gradient(180deg, var(--chart-ichimoku-span-a), var(--chart-ichimoku-span-b));
+    }
+
     .swatch.rs {
       background: var(--chart-rs-line);
     }

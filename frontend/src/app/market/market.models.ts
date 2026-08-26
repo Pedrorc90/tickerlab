@@ -35,6 +35,7 @@ export type Indicator =
   | 'EMA20'
   | 'EMA50'
   | 'BOLLINGER'
+  | 'ICHIMOKU'
   | 'RS'
   | 'VOLUME'
   | 'RSI'
@@ -53,6 +54,9 @@ export type PeriodKey =
   | 'emaSlow'
   | 'bollinger'
   | 'bollingerDeviations'
+  | 'ichimokuConversion'
+  | 'ichimokuBase'
+  | 'ichimokuSpan'
   | 'volumeAverage'
   | 'rsi'
   | 'macdFast'
@@ -125,6 +129,20 @@ export const INDICATORS: ReadonlyArray<{
     params: [
       { key: 'bollinger', label: 'Periodo', defaultValue: 20, min: 2, max: 200 },
       { key: 'bollingerDeviations', label: 'Desviaciones', defaultValue: 2, min: 1, max: 4 },
+    ],
+  },
+  {
+    value: 'ICHIMOKU',
+    swatch: 'ichimoku',
+    label: 'Ichimoku',
+    hint: 'Tendencia, soporte y nube: el cuadro entero.',
+    overlay: true,
+    // The displacement is not a fourth number: it is the base period, the way Hosoda tied
+    // them together, so moving the base moves the cloud and the lagging span with it.
+    params: [
+      { key: 'ichimokuConversion', label: 'Conversión', defaultValue: 9, min: 2, max: 100 },
+      { key: 'ichimokuBase', label: 'Base', defaultValue: 26, min: 2, max: 200 },
+      { key: 'ichimokuSpan', label: 'Nube', defaultValue: 52, min: 2, max: 400 },
     ],
   },
   {

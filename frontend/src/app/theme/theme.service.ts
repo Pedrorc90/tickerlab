@@ -38,6 +38,14 @@ export interface ChartPalette {
   emaSlow: string;
   bollingerBand: string;
   bollingerBasis: string;
+  ichimokuConversion: string;
+  ichimokuBase: string;
+  ichimokuSpanA: string;
+  ichimokuSpanB: string;
+  ichimokuLagging: string;
+  /** The band between the spans. Painted over the candles, so both stay near-transparent. */
+  ichimokuCloudUp: string;
+  ichimokuCloudDown: string;
   rsLine: string;
   macdLine: string;
   macdSignal: string;
@@ -88,6 +96,13 @@ export const THEMES: readonly Theme[] = [
       emaSlow: '#fb7185',
       bollingerBand: '#6f86c9',
       bollingerBasis: 'rgba(111, 134, 201, 0.55)',
+      ichimokuConversion: '#3b82f6',
+      ichimokuBase: '#e11d48',
+      ichimokuSpanA: '#4ade80',
+      ichimokuSpanB: '#f87171',
+      ichimokuLagging: '#c084fc',
+      ichimokuCloudUp: 'rgba(74, 222, 128, 0.13)',
+      ichimokuCloudDown: 'rgba(248, 113, 113, 0.13)',
       // Cyan is the one hue no other overlay uses: the RS line has to be picked out at a
       // glance from the moving averages it shares the price pane with.
       rsLine: '#22d3ee',
@@ -133,6 +148,13 @@ export const THEMES: readonly Theme[] = [
       emaSlow: '#c04a5e',
       bollingerBand: '#4a6fa5',
       bollingerBasis: 'rgba(74, 111, 165, 0.5)',
+      ichimokuConversion: '#2b5f9e',
+      ichimokuBase: '#9c2b3f',
+      ichimokuSpanA: '#2f7d5f',
+      ichimokuSpanB: '#b3402f',
+      ichimokuLagging: '#6b4fa8',
+      ichimokuCloudUp: 'rgba(47, 125, 95, 0.16)',
+      ichimokuCloudDown: 'rgba(179, 64, 47, 0.16)',
       rsLine: '#0e7490',
       macdLine: '#2b5f9e',
       macdSignal: '#c26a1a',
