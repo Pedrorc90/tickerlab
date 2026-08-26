@@ -95,6 +95,9 @@ const RSI_MIDLINE = 50;
  */
 const RS_SCALE_ID = 'rs';
 
+/** The candles own scale — the one a vertical drag has to be able to take hold of. */
+const PRICE_SCALE_ID = 'right';
+
 /** Keeps that overlay in the top band of the price pane, clear of the candles below it. */
 const RS_SCALE_MARGINS = { top: 0.02, bottom: 0.74 };
 
@@ -143,6 +146,11 @@ interface IndicatorPlot {
     .chart-host {
       height: 100%;
       width: 100%;
+      /* lightweight-charts never sets this itself: its whole touch story is a
+         preventDefault on a non-passive touchmove, and a phone ignores that once its
+         compositor has decided the finger belongs to the page. Here the page is the
+         scroller, so a drag over the candles scrolled it instead of moving them. */
+      touch-action: none;
     }
 
     .chart-empty {
@@ -192,6 +200,8 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   /** Only the indicators currently switched on. Everything else has been removed outright. */
   private readonly plots = new Map<Indicator, IndicatorPlot>();
   private resizeObserver?: ResizeObserver;
+  /** The frame that drops autoscale once the new data has been fitted. */
+  private releaseFrame?: number;
 
   constructor() {
     // Redraws whenever the parent swaps ticker, timeframe or indicators;
@@ -237,6 +247,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    cancelAnimationFrame(this.releaseFrame ?? 0);
     this.resizeObserver?.disconnect();
     this.chart?.remove();
   }
@@ -263,6 +274,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       chart.timeScale().setVisibleLogicalRange(range);
     }
     this.layoutPanes();
+    this.releasePriceScale();
   }
 
   private createChart(): IChartApi {
@@ -803,8 +815,36 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
         from: candles.length - visibleBars,
         to: candles.length - 1 + RIGHT_MARGIN_BARS,
       });
+      this.releasePriceScale();
     }
     this.framedSeries = series;
+  }
+
+  /**
+   * Hands the price axis to the pointer. lightweight-charts turns a vertical drag inside the
+   * pane down flat while the scale autoscales — `scrollPriceTo` returns on the spot — so the
+   * candles could only ever be squeezed from the axis, never moved, which is the one thing
+   * every other charting platform lets you do. Autoscale is left on for the single frame that
+   * fits the new data and dropped straight after: the range it worked out stays exactly as it
+   * is, and from there the drag owns it. Double-clicking the axis switches autoscale back on.
+   */
+  private releasePriceScale(): void {
+    const chart = this.chart;
+    if (!chart) {
+      return;
+    }
+    const scale = chart.priceScale(PRICE_SCALE_ID, PRICE_PANE);
+    scale.setAutoScale(true);
+    // The library paints on a frame of its own, booked by the `setData` above — and that
+    // paint is what computes the range being frozen here, so this has to come after it.
+    cancelAnimationFrame(this.releaseFrame ?? 0);
+    this.releaseFrame = requestAnimationFrame(() => {
+      this.releaseFrame = undefined;
+      // A rebuild in between means this scale belongs to a chart that is already gone.
+      if (this.chart === chart) {
+        scale.setAutoScale(false);
+      }
+    });
   }
 
   /** Panes are sized in pixels, so they need recomputing on every resize and every toggle. */
