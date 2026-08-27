@@ -33,6 +33,7 @@ import { ADX_TREND_THRESHOLD, averageDirectionalIndex } from './indicators/adx';
 import { averageTrueRange } from './indicators/atr';
 import { bollingerBands } from './indicators/bollinger';
 import { CloudSeries } from './indicators/cloud-series';
+import { smoothedHeikinAshi } from './indicators/heikin-ashi';
 import { ichimoku } from './indicators/ichimoku';
 import { macd } from './indicators/macd';
 import {
@@ -72,6 +73,7 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
   EMA20: 0,
   EMA50: 0,
   BOLLINGER: 0,
+  SHA: 0,
   ICHIMOKU: 0,
   RS: 0,
 };
@@ -523,6 +525,40 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
               points.map((point) => ({ time: point.time as UTCTimestamp, value: point.lower })),
             );
           },
+        };
+      }
+
+      case 'SHA': {
+        // Candles over candles: the bodies are washes and only the outline is solid, so the
+        // real bar underneath still shows through the smoothed one that covers it.
+        const series = chart.addSeries(
+          CandlestickSeries,
+          {
+            upColor: COLORS.shaUp,
+            downColor: COLORS.shaDown,
+            borderUpColor: COLORS.shaUpBorder,
+            borderDownColor: COLORS.shaDownBorder,
+            wickUpColor: COLORS.shaUpBorder,
+            wickDownColor: COLORS.shaDownBorder,
+            priceLineVisible: false,
+            lastValueVisible: false,
+          },
+          PRICE_PANE,
+        );
+
+        return {
+          series: [series],
+          signature,
+          setData: (candles) =>
+            series.setData(
+              smoothedHeikinAshi(candles, periods.shaPrice, periods.shaCandle).map((bar) => ({
+                time: bar.time as UTCTimestamp,
+                open: bar.open,
+                high: bar.high,
+                low: bar.low,
+                close: bar.close,
+              })),
+            ),
         };
       }
 

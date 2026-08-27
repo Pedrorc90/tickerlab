@@ -38,6 +38,14 @@ export interface ChartPalette {
   emaSlow: string;
   bollingerBand: string;
   bollingerBasis: string;
+  /**
+   * The smoothed candles sit on top of the real ones, so the body is a wash and the outline
+   * does the talking: a solid fill there would hide the very bars it is meant to summarise.
+   */
+  shaUp: string;
+  shaDown: string;
+  shaUpBorder: string;
+  shaDownBorder: string;
   ichimokuConversion: string;
   ichimokuBase: string;
   ichimokuSpanA: string;
@@ -96,6 +104,11 @@ export const THEMES: readonly Theme[] = [
       emaSlow: '#fb7185',
       bollingerBand: '#6f86c9',
       bollingerBasis: 'rgba(111, 134, 201, 0.55)',
+      // The candles' own hues, lifted: this is the same price, not one more indicator.
+      shaUp: 'rgba(38, 166, 154, 0.18)',
+      shaDown: 'rgba(239, 83, 80, 0.18)',
+      shaUpBorder: '#5eead4',
+      shaDownBorder: '#fca5a5',
       ichimokuConversion: '#3b82f6',
       ichimokuBase: '#e11d48',
       ichimokuSpanA: '#4ade80',
@@ -148,6 +161,11 @@ export const THEMES: readonly Theme[] = [
       emaSlow: '#c04a5e',
       bollingerBand: '#4a6fa5',
       bollingerBasis: 'rgba(74, 111, 165, 0.5)',
+      // Darkened instead of lifted: on paper the light end of the hue disappears.
+      shaUp: 'rgba(47, 125, 95, 0.18)',
+      shaDown: 'rgba(179, 64, 47, 0.18)',
+      shaUpBorder: '#1f5c46',
+      shaDownBorder: '#8a2f22',
       ichimokuConversion: '#2b5f9e',
       ichimokuBase: '#9c2b3f',
       ichimokuSpanA: '#2f7d5f',

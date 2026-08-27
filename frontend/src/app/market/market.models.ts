@@ -35,6 +35,7 @@ export type Indicator =
   | 'EMA20'
   | 'EMA50'
   | 'BOLLINGER'
+  | 'SHA'
   | 'ICHIMOKU'
   | 'RS'
   | 'VOLUME'
@@ -54,6 +55,8 @@ export type PeriodKey =
   | 'emaSlow'
   | 'bollinger'
   | 'bollingerDeviations'
+  | 'shaPrice'
+  | 'shaCandle'
   | 'ichimokuConversion'
   | 'ichimokuBase'
   | 'ichimokuSpan'
@@ -129,6 +132,19 @@ export const INDICATORS: ReadonlyArray<{
     params: [
       { key: 'bollinger', label: 'Periodo', defaultValue: 20, min: 2, max: 200 },
       { key: 'bollingerDeviations', label: 'Desviaciones', defaultValue: 2, min: 1, max: 4 },
+    ],
+  },
+  {
+    value: 'SHA',
+    swatch: 'sha',
+    label: 'SHA',
+    hint: 'Velas promediadas: deja el ruido fuera y solo la tendencia.',
+    // Drawn over the real candles rather than in place of them: the point of the smoothing
+    // is what it leaves out, and that only reads next to the bars it left out.
+    overlay: true,
+    params: [
+      { key: 'shaPrice', label: 'Precio', defaultValue: 10, min: 2, max: 100 },
+      { key: 'shaCandle', label: 'Velas', defaultValue: 10, min: 2, max: 100 },
     ],
   },
   {

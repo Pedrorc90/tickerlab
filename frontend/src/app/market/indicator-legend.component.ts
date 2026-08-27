@@ -315,6 +315,15 @@ export interface PeriodChange {
       );
     }
 
+    /* Two bodies, up over down. The outlines, not the washes: at 10px a wash is nothing. */
+    .swatch.sha {
+      background: linear-gradient(
+        180deg,
+        var(--chart-sha-up-border) 0 50%,
+        var(--chart-sha-down-border) 50% 100%
+      );
+    }
+
     /* The kumo in miniature: green over red, with the conversion line across it. */
     .swatch.ichimoku {
       background:
