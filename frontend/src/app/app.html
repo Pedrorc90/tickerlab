@@ -12,7 +12,9 @@
     <span class="brand-name">TickerLab</span>
   </div>
 
-  @if (view() === 'chart') {
+  <!-- The screener brings its own ticker box and reads no timeframe of its own; the other two
+       screens are the same candles asked different questions, so they share this whole bar. -->
+  @if (view() !== 'screener') {
     <app-ticker-search (selected)="onSymbolSelected($event)" />
 
     <div class="timeframes" role="group" aria-label="Temporalidad">
@@ -93,6 +95,14 @@
       (click)="showView('screener')"
     >
       Screener
+    </button>
+    <button
+      type="button"
+      class="view"
+      [class.active]="view() === 'strategies'"
+      (click)="showView('strategies')"
+    >
+      Estrategias
     </button>
   </div>
 
@@ -244,6 +254,22 @@
   }
 </section>
 
+<!-- The quotebar above is shared: the backtest runs on the ticker whose price it is showing,
+     and one header for both screens is what makes switching between them read as one app. -->
+@if (view() === 'strategies') {
+  <!-- The same watchlist component the chart screen docks, projected into the panel: it stays
+       bound to the one symbol signal, so picking a ticker here retests the strategy on it and
+       the chart screen is already on it when you go back. No `pane` class — this screen has no
+       sheet bar, so on a phone the list stacks under the tester instead of floating over it. -->
+  <app-strategies-panel [series]="series()" [chartType]="chartType()">
+    <app-watchlist-panel
+      [currentSymbol]="symbol()"
+      [currentName]="series()?.name ?? null"
+      (selected)="onSymbolSelected($event)"
+    />
+  </app-strategies-panel>
+} @else {
+
 <!-- Three docked columns on a desktop. On a phone the two side panels leave the flow and
      slide up over the chart instead, which is why they carry `pane`: same components, same
      bindings, and only the CSS knows the difference. -->
@@ -312,6 +338,8 @@
     Mis listas
   </button>
 </nav>
+
+}
 
 }
 

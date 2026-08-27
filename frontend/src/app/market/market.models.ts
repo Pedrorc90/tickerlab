@@ -264,3 +264,14 @@ export interface SymbolMatch {
   sector: string | null;
   industry: string | null;
 }
+
+/**
+ * One trade boundary drawn on the price pane. It carries what happened, not how it looks:
+ * the colours belong to the palette, so the chart is the one that turns `kind` into a hue.
+ */
+export interface TradeMarker {
+  time: number;
+  kind: 'buy' | 'sell';
+  /** Rides next to the arrow. Short by force: it is drawn against the bars. */
+  text: string;
+}

@@ -155,6 +155,12 @@ app-screener-panel {
   min-height: 0;
 }
 
+/* Unlike the screener this one keeps the quotebar above it, so it lands in the last row on
+   its own. The split between chart and tester is the panel's business, not the shell's. */
+app-strategies-panel {
+  min-height: 0;
+}
+
 .quotebar {
   display: flex;
   align-items: baseline;

@@ -22,6 +22,7 @@ import { IndicatorLegendComponent, PeriodChange } from './market/indicator-legen
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
 import { ScreenerPanelComponent } from './screener/screener-panel.component';
+import { StrategiesPanelComponent } from './strategies/strategies-panel.component';
 import {
   ScreenerSymbol,
   formatCompact,
@@ -32,8 +33,11 @@ import {
 import { ThemePickerComponent } from './theme/theme-picker.component';
 import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
 
-/** The two screens the app has. */
-type View = 'chart' | 'screener';
+/**
+ * The three screens the app has. `strategies` reads the same ticker and timeframe as `chart`
+ * — it is the same candles asked a different question — so only `screener` parts ways.
+ */
+type View = 'chart' | 'screener' | 'strategies';
 
 /**
  * On a phone the two side panels have nowhere to dock, so they slide up over the chart one at
@@ -132,6 +136,7 @@ function storedPeriods(): IndicatorPeriods {
     IndicatorLegendComponent,
     PriceChartComponent,
     ScreenerPanelComponent,
+    StrategiesPanelComponent,
     WatchlistPanelComponent,
     ThemePickerComponent,
     DecimalPipe,

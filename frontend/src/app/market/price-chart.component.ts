@@ -20,13 +20,16 @@ import {
   HistogramSeries,
   IChartApi,
   ISeriesApi,
+  ISeriesMarkersPluginApi,
   ITextWatermarkPluginApi,
   LineSeries,
   LineStyle,
+  SeriesMarker,
   SeriesType,
   Time,
   UTCTimestamp,
   createChart,
+  createSeriesMarkers,
   createTextWatermark,
 } from 'lightweight-charts';
 import { ADX_TREND_THRESHOLD, averageDirectionalIndex } from './indicators/adx';
@@ -52,6 +55,7 @@ import {
   Indicator,
   IndicatorPeriods,
   IndicatorPoint,
+  TradeMarker,
   periodSuffix,
 } from './market.models';
 import { ThemeService } from '../theme/theme.service';
@@ -183,6 +187,11 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   );
   readonly periods = input<IndicatorPeriods>(DEFAULT_PERIODS);
   readonly chartType = input<ChartType>('CANDLES');
+  /**
+   * Arrows on the price pane, which is where a backtest shows its work. Empty everywhere
+   * else: the chart screen draws indicators, and an indicator has no entries to mark.
+   */
+  readonly markers = input<ReadonlyArray<TradeMarker>>([]);
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
 
@@ -196,6 +205,10 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   private chart?: IChartApi;
   /** Feeds whichever price series is up: candles take OHLC, line and area take the close. */
   private setPriceData: (candles: Candle[]) => void = () => undefined;
+  /** The price series itself, which is what the markers hang off. */
+  private priceSeries?: ISeriesApi<SeriesType>;
+  /** Created on the first marker and thrown away with the series it was attached to. */
+  private markersPlugin?: ISeriesMarkersPluginApi<Time>;
   /** The shape the current price series was built as — a different one means rebuilding. */
   private drawnType?: ChartType;
   /**
@@ -229,6 +242,8 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       }
       this.syncIndicators(indicators, periods);
       this.draw(series, benchmark);
+      // Reads `markers()` inside, so the effect tracks it like everything destructured above.
+      this.applyMarkers();
       this.layoutPanes();
     });
 
@@ -249,6 +264,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     this.createChart();
     this.syncIndicators(this.indicators(), this.periods());
     this.draw(this.series(), this.benchmark());
+    this.applyMarkers();
     this.layoutPanes();
   }
 
@@ -276,6 +292,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     const chart = this.createChart();
     this.syncIndicators(this.indicators(), this.periods());
     this.draw(this.series(), this.benchmark());
+    this.applyMarkers();
     if (range) {
       chart.timeScale().setVisibleLogicalRange(range);
     }
@@ -323,6 +340,9 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     const COLORS = this.palette;
     const type = this.chartType();
     this.drawnType = type;
+    // The plugin belongs to the series being replaced here, so it goes with it: `applyMarkers`
+    // attaches a new one to whatever this switch builds.
+    this.markersPlugin = undefined;
 
     switch (type) {
       case 'CANDLES': {
@@ -334,6 +354,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
           wickUpColor: COLORS.up,
           wickDownColor: COLORS.down,
         });
+        this.priceSeries = series;
         this.setPriceData = (candles) => series.setData(candles.map(asBar));
         break;
       }
@@ -345,6 +366,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
           downColor: COLORS.down,
           thinBars: false,
         });
+        this.priceSeries = series;
         this.setPriceData = (candles) => series.setData(candles.map(asBar));
         break;
       }
@@ -354,6 +376,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
           color: COLORS.priceLine,
           lineWidth: 2,
         });
+        this.priceSeries = series;
         this.setPriceData = (candles) => series.setData(candles.map(asClose));
         break;
       }
@@ -365,6 +388,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
           topColor: COLORS.priceAreaTop,
           bottomColor: COLORS.priceAreaBottom,
         });
+        this.priceSeries = series;
         this.setPriceData = (candles) => series.setData(candles.map(asClose));
         break;
       }
@@ -929,6 +953,34 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       this.releasePriceScale();
     }
     this.framedSeries = series;
+  }
+
+  /**
+   * Hangs the backtest's entries and exits off the price series. The caller says what each one
+   * is, never what colour it is: like every other series on the chart, the hue is the palette's
+   * to decide, and a marker built with the old one would survive a theme change unrepainted.
+   *
+   * The plugin is created on the first marker rather than up front: every screen but the
+   * strategies one passes none, and an empty plugin is one more primitive to walk on each
+   * frame for nothing.
+   */
+  private applyMarkers(): void {
+    const COLORS = this.palette;
+    const markers: SeriesMarker<Time>[] = this.markers().map((marker) => ({
+      time: marker.time as UTCTimestamp,
+      position: marker.kind === 'buy' ? 'belowBar' : 'aboveBar',
+      shape: marker.kind === 'buy' ? 'arrowUp' : 'arrowDown',
+      color: marker.kind === 'buy' ? COLORS.tradeBuy : COLORS.tradeSell,
+      text: marker.text,
+    }));
+
+    if (this.markersPlugin) {
+      this.markersPlugin.setMarkers(markers);
+      return;
+    }
+    if (markers.length && this.priceSeries) {
+      this.markersPlugin = createSeriesMarkers(this.priceSeries, markers);
+    }
   }
 
   /**

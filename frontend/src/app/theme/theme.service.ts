@@ -64,6 +64,13 @@ export interface ChartPalette {
   adxPlusDi: string;
   adxMinusDi: string;
   adxTrendBand: string;
+  /**
+   * The arrows a backtest leaves on the price. Same family as the candles and a step brighter,
+   * the way the smoothed candles are: an entry is not one more indicator, it is the price
+   * being acted on. They sit outside the bars, so the shade only has to beat the background.
+   */
+  tradeBuy: string;
+  tradeSell: string;
 }
 
 export interface Theme {
@@ -129,6 +136,8 @@ export const THEMES: readonly Theme[] = [
       adxPlusDi: '#4ade80',
       adxMinusDi: '#f87171',
       adxTrendBand: 'rgba(199, 203, 216, 0.45)',
+      tradeBuy: '#22c55e',
+      tradeSell: '#fb3b53',
     },
   },
   {
@@ -183,6 +192,8 @@ export const THEMES: readonly Theme[] = [
       adxPlusDi: '#2f7d5f',
       adxMinusDi: '#b3402f',
       adxTrendBand: 'rgba(90, 83, 71, 0.5)',
+      tradeBuy: '#1f7a4d',
+      tradeSell: '#a3271a',
     },
   },
 ];
