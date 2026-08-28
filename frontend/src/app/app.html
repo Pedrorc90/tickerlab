@@ -106,11 +106,9 @@
     </button>
   </div>
 
-  <app-theme-picker />
-
-  <button type="button" class="sign-out" (click)="auth.logout()">
-    <span class="sign-out-user">{{ auth.user()?.username }} · </span>Salir
-  </button>
+  <!-- Who is signed in, how the app is painted, and the way out: one button, because none of
+       the three has anything to do with the chart the rest of the bar reshapes. -->
+  <app-user-menu />
 </header>
 
 @if (view() === 'screener') {

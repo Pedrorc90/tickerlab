@@ -2,6 +2,7 @@ import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { AuthService } from './auth/auth.service';
 import { LoginComponent } from './auth/login.component';
+import { UserMenuComponent } from './auth/user-menu.component';
 import { MarketService } from './market/market.service';
 import {
   CHART_TYPES,
@@ -30,7 +31,6 @@ import {
   formatPrice,
   formatRatio,
 } from './screener/screener.models';
-import { ThemePickerComponent } from './theme/theme-picker.component';
 import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
 
 /**
@@ -138,7 +138,7 @@ function storedPeriods(): IndicatorPeriods {
     ScreenerPanelComponent,
     StrategiesPanelComponent,
     WatchlistPanelComponent,
-    ThemePickerComponent,
+    UserMenuComponent,
     DecimalPipe,
   ],
   templateUrl: './app.html',

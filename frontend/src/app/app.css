@@ -8,23 +8,6 @@
   overflow: hidden;
 }
 
-/* Last in the bar and quiet on purpose: it is the one control nobody is looking for. */
-.sign-out {
-  padding: 0.35rem 0.7rem;
-  background: transparent;
-  border: 1px solid var(--border-control);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.sign-out:hover {
-  background: var(--bg-control-hover);
-  color: var(--text);
-}
-
 .topbar {
   display: flex;
   align-items: center;
@@ -463,34 +446,27 @@ app-price-chart {
     margin-left: auto;
   }
 
-  app-theme-picker {
+  app-user-menu {
     order: 3;
   }
 
-  .sign-out {
-    order: 4;
-    padding: 0.35rem 0.55rem;
-  }
-
-  /* Who is signed in is not news on a phone — there is one of them and they opened the app. */
-  .sign-out-user,
   .brand-name {
     display: none;
   }
 
   app-ticker-search {
-    order: 5;
+    order: 4;
     flex: 1 1 100%;
     max-width: none;
   }
 
   .timeframes {
-    order: 6;
+    order: 5;
     margin-left: 0;
   }
 
   .chart-types {
-    order: 7;
+    order: 6;
   }
 
   /* Seven buttons on one line at 360px only if they stop paying for the desktop's air. */
