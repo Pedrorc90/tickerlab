@@ -217,6 +217,25 @@ function optionIndex(id: string, label: unknown): number {
         }
       </span>
 
+      <!-- Sends what the count above is counting, one page of it: the number is on the button
+           so it is never a guess how many symbols the backtester is about to be handed. -->
+      <button
+        type="button"
+        class="to-strategies"
+        [disabled]="!rows().length"
+        [title]="
+          rows().length
+            ? 'Prueba una estrategia sobre estos ' + rows().length + ' símbolos'
+            : 'No hay resultados que enviar'
+        "
+        (click)="sendToStrategies()"
+      >
+        Probar en Estrategias
+        @if (rows().length) {
+          <span class="badge">{{ rows().length }}</span>
+        }
+      </button>
+
       <button type="button" class="refresh" [disabled]="refreshing()" (click)="refreshQuotes()">
         {{ refreshing() ? 'Actualizando cotizaciones…' : 'Actualizar cotizaciones' }}
       </button>
@@ -766,6 +785,32 @@ function optionIndex(id: string, label: unknown): number {
       color: var(--text-dim);
       font-size: 0.72rem;
       font-variant-numeric: tabular-nums;
+    }
+
+    /* Solid where the two refreshes are dashed: they maintain the table you are on, this one
+       leaves it for another screen, and the outline is what says so before it is read. */
+    .to-strategies {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.6rem;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--accent);
+      font: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .to-strategies:hover:not(:disabled) {
+      background: var(--accent-soft);
+    }
+
+    .to-strategies:disabled {
+      border-color: var(--border-control);
+      color: var(--text-dim);
+      cursor: default;
     }
 
     .refresh {
@@ -1384,6 +1429,12 @@ export class ScreenerPanelComponent implements OnDestroy {
    * after a restore.
    */
   readonly refreshed = output<ScreenerSymbol>();
+  /**
+   * The page in front of you, on its way to the backtester. The rows themselves and not the
+   * filters that found them: a screen re-run half an hour later is a different set of tickers,
+   * and the run would then be measured on symbols you never saw.
+   */
+  readonly sentToStrategies = output<ScreenerSymbol[]>();
 
   protected readonly price = formatPrice;
   protected readonly percent = formatPercent;
@@ -1554,6 +1605,14 @@ export class ScreenerPanelComponent implements OnDestroy {
   }
 
   /** Whether the ticker is already saved, so a second click is not a silent no-op. */
+  /** Hands the page over as it is ordered: the shell turns it into a basket and switches screen. */
+  protected sendToStrategies(): void {
+    const rows = this.rows();
+    if (rows.length) {
+      this.sentToStrategies.emit(rows);
+    }
+  }
+
   protected holds(list: Watchlist, symbol: string): boolean {
     return list.entries.some((entry) => entry.symbol === symbol);
   }

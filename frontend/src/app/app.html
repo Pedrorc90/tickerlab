@@ -104,6 +104,14 @@
     >
       Estrategias
     </button>
+    <button
+      type="button"
+      class="view"
+      [class.active]="view() === 'portfolio'"
+      (click)="showView('portfolio')"
+    >
+      Cartera
+    </button>
   </div>
 
   <!-- Who is signed in, how the app is painted, and the way out: one button, because none of
@@ -118,6 +126,7 @@
     [selectedSymbol]="selectedRow()?.symbol ?? null"
     (selected)="onScreenerSelected($event)"
     (refreshed)="onRowRefreshed($event)"
+    (sentToStrategies)="onSentToStrategies($event)"
   >
   <!-- Every number here rode in with the table's own page: picking a row costs one candles
        request and nothing else. -->
@@ -259,13 +268,27 @@
        bound to the one symbol signal, so picking a ticker here retests the strategy on it and
        the chart screen is already on it when you go back. No `pane` class — this screen has no
        sheet bar, so on a phone the list stacks under the tester instead of floating over it. -->
-  <app-strategies-panel [series]="series()" [chartType]="chartType()">
+  <app-strategies-panel
+    [series]="series()"
+    [chartType]="chartType()"
+    [sentList]="sentBasket()"
+    (symbolPicked)="onSymbolSelected($event)"
+  >
     <app-watchlist-panel
       [currentSymbol]="symbol()"
       [currentName]="series()?.name ?? null"
       (selected)="onSymbolSelected($event)"
     />
   </app-strategies-panel>
+} @else if (view() === 'portfolio') {
+  <!-- No chart here and no watchlist docked: the screen answers "what do I own and what is it
+       worth", and the quotebar above already says which ticker the order form will buy. -->
+  <app-portfolio-panel
+    [currentSymbol]="symbol()"
+    [currentName]="series()?.name ?? null"
+    [currentPrice]="quote()?.close ?? null"
+    (selected)="onSymbolSelected($event)"
+  />
 } @else {
 
 <!-- Three docked columns on a desktop. On a phone the two side panels leave the flow and
@@ -287,6 +310,7 @@
     <app-price-chart
       [series]="series()"
       [benchmark]="benchmark()"
+      [markers]="myMarkers()"
       [indicators]="visibleIndicators()"
       [periods]="periods()"
       [chartType]="chartType()"

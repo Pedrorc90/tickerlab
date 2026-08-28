@@ -23,6 +23,10 @@ import { IndicatorLegendComponent, PeriodChange } from './market/indicator-legen
 import { PriceChartComponent } from './market/price-chart.component';
 import { TickerSearchComponent } from './market/ticker-search.component';
 import { ScreenerPanelComponent } from './screener/screener-panel.component';
+import { orderMarkers } from './portfolio/order-markers';
+import { Order } from './portfolio/portfolio.models';
+import { PortfolioPanelComponent } from './portfolio/portfolio-panel.component';
+import { PortfolioService } from './portfolio/portfolio.service';
 import { StrategiesPanelComponent } from './strategies/strategies-panel.component';
 import {
   ScreenerSymbol,
@@ -32,12 +36,14 @@ import {
   formatRatio,
 } from './screener/screener.models';
 import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
+import { Watchlist } from './watchlist/watchlist.models';
 
 /**
- * The three screens the app has. `strategies` reads the same ticker and timeframe as `chart`
- * — it is the same candles asked a different question — so only `screener` parts ways.
+ * The four screens the app has. `strategies` and `portfolio` read the same ticker and timeframe
+ * as `chart` — the same candles asked a different question, and then bought — so only `screener`
+ * parts ways.
  */
-type View = 'chart' | 'screener' | 'strategies';
+type View = 'chart' | 'screener' | 'strategies' | 'portfolio';
 
 /**
  * On a phone the two side panels have nowhere to dock, so they slide up over the chart one at
@@ -47,6 +53,12 @@ type Sheet = 'indicators' | 'watchlist' | null;
 
 /** Something recognisable has to be on screen before the user types anything. */
 const DEFAULT_SYMBOL = 'AAPL';
+
+/**
+ * The id the screener's list wears in the tester's dropdown. Not a UUID, which is exactly what
+ * makes it safe: every saved watchlist has one, so this can never collide with a real list.
+ */
+const SENT_BASKET_ID = 'screener';
 
 /** Whether the indicator descriptions were left open. UI state, so it stays in the browser. */
 const SHOW_HINTS_KEY = 'tickerlab.showIndicatorHints';
@@ -137,6 +149,7 @@ function storedPeriods(): IndicatorPeriods {
     PriceChartComponent,
     ScreenerPanelComponent,
     StrategiesPanelComponent,
+    PortfolioPanelComponent,
     WatchlistPanelComponent,
     UserMenuComponent,
     DecimalPipe,
@@ -147,6 +160,7 @@ function storedPeriods(): IndicatorPeriods {
 export class App {
   /** Read by the template: nothing is painted until this says who is signed in. */
   protected readonly auth = inject(AuthService);
+  private readonly portfolios = inject(PortfolioService);
 
   /** Drives the decisions CSS cannot take on its own; the widths themselves live in the CSS. */
   protected readonly viewport = inject(ViewportService);
@@ -182,6 +196,14 @@ export class App {
   /** Which screen is up. Not stored: a session always opens on the chart. */
   protected readonly view = signal<View>('chart');
 
+  /**
+   * The last list sent over from the screener, shaped like a watchlist so the tester takes it
+   * without knowing where it came from. It lives here rather than in the panel because the
+   * panel is destroyed every time you leave the screen, and the list has to survive the trip
+   * back to the screener and forward again. Never saved: see `sentList` on the tester.
+   */
+  protected readonly sentBasket = signal<Watchlist | null>(null);
+
   /** Which panel is up over the chart on a phone. Never open on a screen wide enough to dock. */
   protected readonly sheet = signal<Sheet>(null);
   /** Everything on for a first visit; after that, however the legend was left. */
@@ -201,6 +223,17 @@ export class App {
   protected readonly benchmark = signal<CandleSeries | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /** My own fills on the ticker being drawn, snapped onto its bars. */
+  protected readonly myOrders = signal<Order[]>([]);
+
+  /**
+   * The same marker shape the backtest produces, which is the point: what a strategy would have
+   * done and what you actually did are drawn by the same code, on the same chart.
+   */
+  protected readonly myMarkers = computed(() =>
+    orderMarkers(this.myOrders(), this.series()?.candles ?? []),
+  );
 
   /** Last bar plus its move against the previous close: the numbers a chart header shows. */
   protected readonly quote = computed(() => {
@@ -283,7 +316,28 @@ export class App {
         void untracked(() => this.load());
       }
     });
+    // The fills of the open portfolio on the ticker being drawn. Reads `revision` so an order
+    // placed on the Cartera screen shows up here without having to change ticker and come back.
+    effect(() => {
+      const id = this.portfolios.activeId();
+      const symbol = this.symbol();
+      this.portfolios.revision();
+      if (!this.auth.user() || !id || !symbol) {
+        this.myOrders.set([]);
+        return;
+      }
+      void untracked(() => this.loadMyOrders(id, symbol));
+    });
     void this.auth.probe();
+  }
+
+  /** Silent on failure: a chart that will not paint because the order book is down is worse. */
+  private async loadMyOrders(id: string, symbol: string): Promise<void> {
+    try {
+      this.myOrders.set(await this.portfolios.ordersFor(id, symbol));
+    } catch {
+      this.myOrders.set([]);
+    }
   }
 
   protected onSymbolSelected(symbol: string): void {
@@ -315,6 +369,20 @@ export class App {
    */
   protected onRowRefreshed(row: ScreenerSymbol): void {
     this.selectedRow.set(row);
+  }
+
+  /**
+   * The screener's page, handed to the tester as a basket. A fresh object every time even for
+   * the same tickers: it is what tells the tester a new list arrived, and pressing the button
+   * again after re-sorting the table is a deliberate «test these, in this order».
+   */
+  protected onSentToStrategies(rows: ScreenerSymbol[]): void {
+    this.sentBasket.set({
+      id: SENT_BASKET_ID,
+      name: 'Screener',
+      entries: rows.map(({ symbol, name }) => ({ symbol, name })),
+    });
+    this.showView('strategies');
   }
 
   protected showView(view: View): void {

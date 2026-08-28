@@ -20,16 +20,13 @@ import {
   HistogramSeries,
   IChartApi,
   ISeriesApi,
-  ISeriesMarkersPluginApi,
   ITextWatermarkPluginApi,
   LineSeries,
   LineStyle,
-  SeriesMarker,
   SeriesType,
   Time,
   UTCTimestamp,
   createChart,
-  createSeriesMarkers,
   createTextWatermark,
 } from 'lightweight-charts';
 import { ADX_TREND_THRESHOLD, averageDirectionalIndex } from './indicators/adx';
@@ -58,6 +55,7 @@ import {
   TradeMarker,
   periodSuffix,
 } from './market.models';
+import { TRADE_LABEL_ROOM, TradeMarkers } from './trade-markers';
 import { ThemeService } from '../theme/theme.service';
 
 /**
@@ -110,6 +108,9 @@ const PRICE_SCALE_ID = 'right';
 
 /** Keeps that overlay in the top band of the price pane, clear of the candles below it. */
 const RS_SCALE_MARGINS = { top: 0.02, bottom: 0.74 };
+
+/** The library's own, restated: the floor the trade labels widen from and fall back to. */
+const DEFAULT_SCALE_MARGINS = { top: 0.2, bottom: 0.1 };
 
 /** What candles and bars are fed: the whole bar. */
 const asBar = (candle: Candle) => ({
@@ -208,7 +209,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
   /** The price series itself, which is what the markers hang off. */
   private priceSeries?: ISeriesApi<SeriesType>;
   /** Created on the first marker and thrown away with the series it was attached to. */
-  private markersPlugin?: ISeriesMarkersPluginApi<Time>;
+  private tradeMarkers?: TradeMarkers;
   /** The shape the current price series was built as — a different one means rebuilding. */
   private drawnType?: ChartType;
   /**
@@ -320,7 +321,7 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
       rightPriceScale: { borderColor: COLORS.border },
       // One bar of air after the last candle, not four: the gap is there so the newest bar is
       // not welded to the price axis, and any more of it is width the chart is not drawing in.
-      timeScale: { borderColor: COLORS.border, rightOffset: 1 },
+      timeScale: { borderColor: COLORS.border, rightOffset: 1, timeVisible: true },
       autoSize: true,
     });
 
@@ -340,9 +341,9 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     const COLORS = this.palette;
     const type = this.chartType();
     this.drawnType = type;
-    // The plugin belongs to the series being replaced here, so it goes with it: `applyMarkers`
-    // attaches a new one to whatever this switch builds.
-    this.markersPlugin = undefined;
+    // The primitive belongs to the series being replaced here, so it goes with it:
+    // `applyMarkers` attaches a new one to whatever this switch builds.
+    this.tradeMarkers = undefined;
 
     switch (type) {
       case 'CANDLES': {
@@ -965,22 +966,19 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
    * frame for nothing.
    */
   private applyMarkers(): void {
-    const COLORS = this.palette;
-    const markers: SeriesMarker<Time>[] = this.markers().map((marker) => ({
-      time: marker.time as UTCTimestamp,
-      position: marker.kind === 'buy' ? 'belowBar' : 'aboveBar',
-      shape: marker.kind === 'buy' ? 'arrowUp' : 'arrowDown',
-      color: marker.kind === 'buy' ? COLORS.tradeBuy : COLORS.tradeSell,
-      text: marker.text,
-    }));
-
-    if (this.markersPlugin) {
-      this.markersPlugin.setMarkers(markers);
-      return;
+    const markers = this.markers();
+    if (!this.tradeMarkers) {
+      if (!markers.length || !this.priceSeries) {
+        return;
+      }
+      this.tradeMarkers = new TradeMarkers({
+        buy: this.palette.tradeBuy,
+        sell: this.palette.tradeSell,
+        link: this.palette.tradeLink,
+      });
+      this.priceSeries.attachPrimitive(this.tradeMarkers);
     }
-    if (markers.length && this.priceSeries) {
-      this.markersPlugin = createSeriesMarkers(this.priceSeries, markers);
-    }
+    this.tradeMarkers.setMarkers(markers, this.series()?.candles ?? []);
   }
 
   /**
@@ -1040,5 +1038,26 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
     for (let i = 0; i < Math.min(panes.length, weights.length); i++) {
       panes[i].setHeight(Math.round((total * weights[i]) / sum));
     }
+
+    this.reserveMarkerRoom(panes[0].getHeight());
+  }
+
+  /**
+   * Keeps the trade labels inside the price pane. They hang a fixed number of pixels off the
+   * bars while the scale margins are fractions of the pane, so the reservation is worked out
+   * again every time the pane is resized. No markers means no reservation: the chart screen
+   * keeps the library's own framing, which is what every other screen is drawn against.
+   */
+  private reserveMarkerRoom(priceHeight: number): void {
+    if (!this.priceSeries || priceHeight <= 0) {
+      return;
+    }
+    const room = this.markers().length ? TRADE_LABEL_ROOM / priceHeight : 0;
+    this.priceSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: Math.max(DEFAULT_SCALE_MARGINS.top, room),
+        bottom: Math.max(DEFAULT_SCALE_MARGINS.bottom, room),
+      },
+    });
   }
 }

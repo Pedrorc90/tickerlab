@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import {
   CandleSeries,
   ChartType,
@@ -6,31 +15,45 @@ import {
   Indicator,
   IndicatorPeriods,
 } from '../market/market.models';
+import { MarketService } from '../market/market.service';
 import { PriceChartComponent } from '../market/price-chart.component';
 import { formatPercent, formatPrice } from '../screener/screener.models';
+import { Watchlist } from '../watchlist/watchlist.models';
+import { WatchlistService } from '../watchlist/watchlist.service';
+import { BasketRun, runBasket } from './basket';
+import { BasketPanelComponent } from './basket-panel.component';
 import { STARTING_CAPITAL, runBacktest } from './backtest';
 import {
+  COMBINE_MODES,
+  CombineMode,
   DEFAULT_STRATEGY_PARAMS,
+  STOP_LOSS,
   STRATEGIES,
+  STRATEGY_PARAMS,
   Strategy,
   StrategyParam,
   StrategyParams,
+  TAKE_PROFIT,
+  TRADE_COST,
+  VOLUME_FILTER,
+  chartSetup,
   paramSuffix,
 } from './strategy.models';
 
-/** Which strategy was last run. UI state, so it stays in the browser. */
-const STRATEGY_KEY = 'tickerlab.strategy';
+/** Which strategies were last ticked. UI state, so it stays in the browser. */
+const STRATEGIES_KEY = 'tickerlab.strategies';
 
-/** Its periods. Same rule as the indicator ones: only what was moved off the default. */
+/** The one before them, from when the screen ran a single strategy. Read once, then replaced. */
+const LEGACY_STRATEGY_KEY = 'tickerlab.strategy';
+
+/** How they are combined. Its own key: it survives changing which ones are ticked. */
+const MODE_KEY = 'tickerlab.strategyMode';
+
+/** Their numbers. Same rule as the indicator ones: only what was moved off the default. */
 const PARAMS_KEY = 'tickerlab.strategyParams';
 
-/**
- * The chart draws the strategy and only the strategy: the two averages it crosses, over the
- * candles, and nothing the legend of the other screen has switched on. The slots are named
- * after their textbook periods but carry whatever `emaFast`/`emaSlow` say, which is exactly
- * what the strategy params are called.
- */
-const STRATEGY_INDICATORS: ReadonlySet<Indicator> = new Set<Indicator>(['EMA20', 'EMA50']);
+/** Whether the volume pane is open. Nothing to do with the run: it is what the chart draws. */
+const VOLUME_KEY = 'tickerlab.strategyVolume';
 
 /** The equity sparkline's box. Drawn with `preserveAspectRatio="none"`, so it is a grid, not px. */
 const SPARK_WIDTH = 240;
@@ -45,14 +68,33 @@ const DATE_FORMAT = new Intl.DateTimeFormat('es-ES', {
   year: '2-digit',
 });
 
-/** Every param by key, so a stored number can be checked against its own bounds. */
-const STRATEGY_PARAMS = new Map<string, StrategyParam>(
-  STRATEGIES.flatMap(({ params }) => params.map((param) => [param.key as string, param])),
-);
+/**
+ * The ticked strategies, in catalogue order however they were stored — the order is what the
+ * chart resolves its slots by, and it should not depend on which box was clicked first.
+ *
+ * A session saved before this screen could combine holds a single id under the old key: it is
+ * read as a list of one, so the strategy that was last looked at is still the one that opens.
+ * Anything unrecognised falls back to the first of the catalogue rather than to nothing: an
+ * empty screen with no explanation is the one outcome that looks like a bug.
+ */
+function storedStrategies(): ReadonlyArray<Strategy> {
+  const saved: unknown[] = read(STRATEGIES_KEY) ?? [localStorage.getItem(LEGACY_STRATEGY_KEY)];
+  const ids = new Set(saved.filter((id): id is string => typeof id === 'string'));
+  const ticked = STRATEGIES.filter(({ id }) => ids.has(id));
+  return ticked.length ? ticked : [STRATEGIES[0]];
+}
 
-function storedStrategy(): Strategy {
-  const saved = localStorage.getItem(STRATEGY_KEY);
-  return STRATEGIES.find(({ id }) => id === saved) ?? STRATEGIES[0];
+function storedMode(): CombineMode {
+  return localStorage.getItem(MODE_KEY) === 'ANY' ? 'ANY' : 'ALL';
+}
+
+function read(key: string): unknown[] | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) ?? 'null') as unknown;
+    return Array.isArray(saved) ? saved : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -80,175 +122,351 @@ function storedParams(): StrategyParams {
 @Component({
   selector: 'app-strategies-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PriceChartComponent],
+  imports: [BasketPanelComponent, PriceChartComponent],
   template: `
-    <section class="setup">
-      <div class="picker" role="group" aria-label="Estrategia">
-        @for (option of strategies; track option.id) {
+    <!-- The same rail the chart screen gives the indicators, and for the same reason: what
+         gets ticked and tuned is a list you keep coming back to, and a list reads down a side
+         instead of along a bar. Everything that configures the run lives here now — a second
+         strip up top holding the two globals would be a bar with nothing in it. -->
+    <aside class="strategies" aria-label="Estrategias">
+      <div class="strategies-head">
+        <span class="strategies-title">Estrategias</span>
+      </div>
+
+      <!-- The numbers sit under the strategy they belong to and only while it is ticked. That
+           is what pays for dropping the group name: «Rápida» says nothing on its own, and it
+           needs no label when the only thing above it is the strategy it belongs to. -->
+      @for (option of strategies; track option.id) {
+        <div class="strategy-row">
           <button
             type="button"
             class="strategy"
-            [class.active]="strategy().id === option.id"
+            [class.active]="isTicked(option)"
+            [attr.aria-pressed]="isTicked(option)"
             [title]="option.summary"
-            (click)="select(option)"
+            (click)="toggle(option)"
           >
-            {{ option.name }}
+            <span class="strategy-name">{{ option.name }}</span>
             <span class="strategy-periods">{{ suffix(option) }}</span>
           </button>
+
+          @if (isTicked(option)) {
+            <div class="group">
+              @for (param of option.params; track param.key) {
+                <label class="param">
+                  <span class="param-name">{{ param.label }}</span>
+                  <input
+                    #box
+                    type="number"
+                    [min]="param.min"
+                    [max]="param.max"
+                    [value]="params()[param.key]"
+                    (change)="box.value = setParam(param, box.value)"
+                  />
+                </label>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Only worth a control once there is something to combine: with one strategy ticked,
+           «todas» and «cualquiera» are the same sentence about the same rule. -->
+      @if (ticked().length > 1) {
+        <div class="mode" role="group" aria-label="Cómo se combinan">
+          @for (option of modes; track option.value) {
+            <button
+              type="button"
+              class="mode-option"
+              [class.active]="mode() === option.value"
+              [attr.aria-pressed]="mode() === option.value"
+              [title]="option.hint"
+              (click)="setMode(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      }
+
+      <!-- Below a rule of their own, and outside the list on purpose: the three are laid over
+           whatever the ticked strategies decided — two closing a trade they wanted open, one
+           refusing to open a trade they wanted taken — so none belongs to any single row. -->
+      <div class="globals">
+        <label class="param">
+          <span class="param-name">{{ objective.label }}</span>
+          <input
+            #target
+            type="number"
+            [min]="objective.min"
+            [max]="objective.max"
+            [value]="params()[objective.key]"
+            (change)="target.value = setParam(objective, target.value)"
+          />
+        </label>
+
+        <label class="param">
+          <span class="param-name">{{ stop.label }}</span>
+          <input
+            #floor
+            type="number"
+            [min]="stop.min"
+            [max]="stop.max"
+            [value]="params()[stop.key]"
+            (change)="floor.value = setParam(stop, floor.value)"
+          />
+        </label>
+
+        <label class="param">
+          <span class="param-name">{{ volumeGate.label }}</span>
+          <input
+            #gate
+            type="number"
+            [min]="volumeGate.min"
+            [max]="volumeGate.max"
+            [value]="params()[volumeGate.key]"
+            (change)="gate.value = setParam(volumeGate, gate.value)"
+          />
+        </label>
+
+        <label class="param">
+          <span class="param-name">{{ cost.label }}</span>
+          <input
+            #fee
+            type="number"
+            [min]="cost.min"
+            [max]="cost.max"
+            [value]="params()[cost.key]"
+            (change)="fee.value = setParam(cost, fee.value)"
+          />
+        </label>
+      </div>
+
+      <!-- What the chart draws, not what the run does: switching the pane on changes nothing
+           about the backtest. It sits under the gate above because that is what it is for —
+           a minimum volume is impossible to pick without the bars it filters in front of you. -->
+      <div class="overlays" role="group" aria-label="Qué dibuja el gráfico">
+        <button
+          type="button"
+          class="mode-option"
+          [class.active]="showVolume()"
+          [attr.aria-pressed]="showVolume()"
+          title="Abre el panel de volumen bajo el precio"
+          (click)="showVolume.set(!showVolume())"
+        >
+          Volumen
+        </button>
+      </div>
+
+      <!-- The same configuration over a whole list. One ticker cannot tell a strategy from a
+           coincidence: with five rules and three periods each, something always looks brilliant
+           on some chart, and the only answer to that is running it over thirty of them. -->
+      <div class="basket-control">
+        <span class="basket-label">Cesta</span>
+        <select
+          #list
+          class="basket-list"
+          [disabled]="!lists().length || progress() !== null"
+          (change)="listId.set(list.value)"
+        >
+          @for (option of lists(); track option.id) {
+            <option [value]="option.id" [selected]="option.id === listId()">
+              {{ option.name }} · {{ option.entries.length }}
+            </option>
+          } @empty {
+            <option value="">sin listas</option>
+          }
+        </select>
+        <button
+          type="button"
+          class="basket-run"
+          [disabled]="!canRunBasket()"
+          [title]="basketHint()"
+          (click)="testBasket()"
+        >
+          @if (progress(); as run) {
+            {{ run.done }}/{{ run.total }}
+          } @else {
+            Probar cesta
+          }
+        </button>
+
+        <!-- The basket named one line up, spelled out. The median answers «do these rules work
+             at all»; this is what you reach for straight afterwards, because the next question
+             is always which of the fifty it worked on — and that is one chart, not a median. -->
+        @if (selectedList(); as list) {
+          <ul class="basket-symbols" aria-label="Símbolos de la cesta">
+            @for (entry of list.entries; track entry.symbol) {
+              <li>
+                <button
+                  type="button"
+                  class="basket-symbol"
+                  [class.current]="entry.symbol === series()?.symbol"
+                  [attr.aria-current]="entry.symbol === series()?.symbol ? 'true' : null"
+                  [title]="entry.name ?? entry.symbol"
+                  (click)="symbolPicked.emit(entry.symbol)"
+                >
+                  {{ entry.symbol }}
+                </button>
+              </li>
+            }
+          </ul>
         }
       </div>
 
-      @for (param of strategy().params; track param.key) {
-        <label class="param">
-          {{ param.label }}
-          <input
-            #box
-            type="number"
-            [min]="param.min"
-            [max]="param.max"
-            [value]="params()[param.key]"
-            (change)="box.value = setParam(param, box.value)"
-          />
-        </label>
-      }
-
-      <!-- The rules and what the simulation leaves out, side by side: a backtest that does not
-           say what it charged is a number nobody can compare with anything. -->
+      <!-- The rules and what the simulation leaves out, at the foot of the controls that wrote
+           them: a backtest that does not say what it charged is a number nobody can compare
+           with anything. -->
       <p class="rules">
-        <span class="rule"><span class="dot buy"></span>{{ strategy().entry }}</span>
-        <span class="rule"><span class="dot sell"></span>{{ strategy().exit }}</span>
-        <span class="caveat">Al cierre, todo dentro y todo fuera · sin stop ni comisiones</span>
+        <span class="rule"><span class="dot buy"></span>Dentro cuando {{ entryLine() }}</span>
+        <span class="rule"><span class="dot sell"></span>{{ exitLine() }}</span>
+        <span class="caveat">Al cierre, todo dentro y todo fuera · {{ costLine() }}</span>
       </p>
-    </section>
+    </aside>
 
     <main class="chart-area">
       <app-price-chart
         [series]="series()"
         [chartType]="chartType()"
-        [indicators]="chartIndicators"
+        [indicators]="chartIndicators()"
         [periods]="chartPeriods()"
         [markers]="backtest().markers"
       />
     </main>
 
-    <section class="tester" aria-label="Resultado del backtest">
-      <div class="summary">
-        <header class="summary-head">
-          <div class="headline">
-            <span class="headline-label">Rentabilidad</span>
-            <span
-              class="headline-value"
-              [class.up]="stats().totalReturn > 0"
-              [class.down]="stats().totalReturn < 0"
-            >
-              {{ percent(stats().totalReturn) }}
-            </span>
-            <span class="headline-note">
-              comprar y mantener {{ percent(stats().buyHoldReturn) }}
-            </span>
-          </div>
-
-          @if (spark(); as curve) {
-            <svg
-              class="equity"
-              [attr.viewBox]="'0 0 ' + sparkWidth + ' ' + sparkHeight"
-              preserveAspectRatio="none"
-              aria-label="Curva de capital"
-            >
-              <line
-                class="equity-base"
-                x1="0"
-                [attr.y1]="curve.base"
-                [attr.x2]="sparkWidth"
-                [attr.y2]="curve.base"
-              />
-              <path
-                class="equity-line"
+    <!-- One set of numbers at a time. The body below keeps its indentation inside the branch:
+         reindenting sixty lines would bury the change in the diff. -->
+    @if (visibleBasket(); as run) {
+      <app-basket-panel [run]="run" (closed)="basket.set(null)" />
+    } @else {
+      <section class="tester" aria-label="Resultado del backtest">
+        <div class="summary">
+          <header class="summary-head">
+            <div class="headline">
+              <span class="headline-label">Rentabilidad</span>
+              <span
+                class="headline-value"
                 [class.up]="stats().totalReturn > 0"
                 [class.down]="stats().totalReturn < 0"
-                [attr.d]="curve.path"
-              />
-            </svg>
-          }
-        </header>
+              >
+                {{ percent(stats().totalReturn) }}
+              </span>
+              <span class="headline-note">
+                comprar y mantener {{ percent(stats().buyHoldReturn) }}
+              </span>
+            </div>
 
-        <dl class="stats">
-          <div class="stat">
-            <dt>Operaciones</dt>
-            <dd>
-              {{ stats().closedTrades }}
-              @if (stats().openTrade) {
-                <span class="stat-note">+1 abierta</span>
-              }
-            </dd>
-          </div>
-          <div class="stat"><dt>Aciertos</dt><dd>{{ hits() }}</dd></div>
-          <div class="stat">
-            <dt>Ganancia media</dt>
-            <dd class="up">{{ percent(stats().averageWin) }}</dd>
-          </div>
-          <div class="stat">
-            <dt>Pérdida media</dt>
-            <dd class="down">{{ percent(stats().averageLoss) }}</dd>
-          </div>
-          <div class="stat"><dt>Factor</dt><dd>{{ factor(stats().profitFactor) }}</dd></div>
-          <div class="stat">
-            <dt>Caída máxima</dt>
-            <dd class="down">{{ percent(stats().maxDrawdown) }}</dd>
-          </div>
-          <div class="stat"><dt>Exposición</dt><dd>{{ ratio(stats().exposure, '%') }}</dd></div>
-          <div class="stat">
-            <dt>Duración media</dt>
-            <dd>{{ ratio(stats().averageBars, ' velas') }}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <div class="trades">
-        <table>
-          <thead>
-            <tr>
-              <th class="num">#</th>
-              <th>Entrada</th>
-              <th class="num">Precio</th>
-              <th>Salida</th>
-              <th class="num">Precio</th>
-              <th class="num">Velas</th>
-              <th class="num">Resultado</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (trade of recentFirst(); track trade.entryTime; let i = $index) {
-              <tr [class.running]="trade.open">
-                <td class="num">{{ trades().length - i }}</td>
-                <td>{{ date(trade.entryTime) }}</td>
-                <td class="num">{{ price(trade.entryPrice) }}</td>
-                <td>{{ trade.exitTime === null ? 'abierta' : date(trade.exitTime) }}</td>
-                <td class="num">{{ price(trade.exitPrice) }}</td>
-                <td class="num">{{ trade.bars }}</td>
-                <td
-                  class="num"
-                  [class.up]="trade.returnPercent > 0"
-                  [class.down]="trade.returnPercent < 0"
-                >
-                  {{ percent(trade.returnPercent) }}
-                </td>
-              </tr>
-            } @empty {
-              <tr>
-                <td class="empty" colspan="7">
-                  {{
-                    series()
-                      ? 'Las medias no llegan a cruzarse en este histórico.'
-                      : 'Busca un ticker para probar la estrategia.'
-                  }}
-                </td>
-              </tr>
+            @if (spark(); as curve) {
+              <svg
+                class="equity"
+                [attr.viewBox]="'0 0 ' + sparkWidth + ' ' + sparkHeight"
+                preserveAspectRatio="none"
+                aria-label="Curva de capital"
+              >
+                <line
+                  class="equity-base"
+                  x1="0"
+                  [attr.y1]="curve.base"
+                  [attr.x2]="sparkWidth"
+                  [attr.y2]="curve.base"
+                />
+                <path
+                  class="equity-line"
+                  [class.up]="stats().totalReturn > 0"
+                  [class.down]="stats().totalReturn < 0"
+                  [attr.d]="curve.path"
+                />
+              </svg>
             }
-          </tbody>
-        </table>
-      </div>
-    </section>
+          </header>
+
+          <dl class="stats">
+            <div class="stat">
+              <dt>Operaciones</dt>
+              <dd>
+                {{ stats().closedTrades }}
+                @if (stats().openTrade) {
+                  <span class="stat-note">+1 abierta</span>
+                }
+              </dd>
+            </div>
+            <div class="stat">
+              <dt>Aciertos</dt>
+              <dd>{{ hits() }}</dd>
+            </div>
+            <div class="stat">
+              <dt>Ganancia media</dt>
+              <dd class="up">{{ percent(stats().averageWin) }}</dd>
+            </div>
+            <div class="stat">
+              <dt>Pérdida media</dt>
+              <dd class="down">{{ percent(stats().averageLoss) }}</dd>
+            </div>
+            <div class="stat">
+              <dt>Factor</dt>
+              <dd>{{ factor(stats().profitFactor) }}</dd>
+            </div>
+            <div class="stat">
+              <dt>Caída máxima</dt>
+              <dd class="down">{{ percent(stats().maxDrawdown) }}</dd>
+            </div>
+            <div class="stat">
+              <dt>Exposición</dt>
+              <dd>{{ ratio(stats().exposure, '%') }}</dd>
+            </div>
+            <div class="stat">
+              <dt>Duración media</dt>
+              <dd>{{ ratio(stats().averageBars, ' velas') }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="trades">
+          <table>
+            <thead>
+              <tr>
+                <th class="num">#</th>
+                <th>Entrada</th>
+                <th class="num">Precio</th>
+                <th>Salida</th>
+                <th class="num">Precio</th>
+                <th class="num">Velas</th>
+                <th class="num">Resultado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (trade of recentFirst(); track trade.entryTime; let i = $index) {
+                <tr [class.running]="trade.open">
+                  <td class="num">{{ trades().length - i }}</td>
+                  <td>{{ date(trade.entryTime) }}</td>
+                  <td class="num">{{ price(trade.entryPrice) }}</td>
+                  <td>{{ trade.exitTime === null ? 'abierta' : date(trade.exitTime) }}</td>
+                  <td class="num">{{ price(trade.exitPrice) }}</td>
+                  <td class="num">{{ trade.bars }}</td>
+                  <td
+                    class="num"
+                    [class.up]="trade.returnPercent > 0"
+                    [class.down]="trade.returnPercent < 0"
+                  >
+                    {{ percent(trade.returnPercent) }}
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td class="empty" colspan="7">
+                    {{
+                      series()
+                        ? 'Las reglas no llegan a cumplirse en este histórico.'
+                        : 'Busca un ticker para probar la estrategia.'
+                    }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
 
     <!-- The watchlists, handed in from the shell rather than built here: they are already bound
          to the ticker and the search box up there, and a second instance would be a second
@@ -260,11 +478,12 @@ function storedParams(): StrategyParams {
   styles: `
     :host {
       display: grid;
-      /* Setup on top, candles taking whatever is left, tester anchored at the bottom: the
-         chart is the only part that should grow, and the numbers never leave the screen.
-         The watchlists dock down the right at the same width they have on the chart screen. */
-      grid-template-rows: auto 1fr auto;
-      grid-template-columns: minmax(0, 1fr) 15rem;
+      /* Three docked columns, the same shape as the chart screen: what you configure down the
+         left, the candles in the middle, the watchlists down the right. Only the chart row
+         grows — the numbers under it never leave the screen. The rail is wider than the chart
+         screen's 10.8rem because these names are sentences and those were initials. */
+      grid-template-rows: minmax(0, 1fr) auto;
+      grid-template-columns: 16.34rem minmax(0, 1fr) 15rem;
       min-height: 0;
       overflow: hidden;
       background: var(--bg-app);
@@ -274,47 +493,62 @@ function storedParams(): StrategyParams {
        rather than a plain box: that is what makes the panel projected into it fill the dock,
        which no rule of this component could reach — the content belongs to the shell's view. */
     .dock {
-      grid-column: 2;
-      grid-row: 2 / -1;
+      grid-column: 3;
+      grid-row: 1 / -1;
       display: grid;
       min-height: 0;
       overflow: hidden;
     }
 
-    /* Crosses both columns, the way the screener's filter bar does: the strategy and its
-       periods head the whole screen, not the chart alone. */
-    .setup {
-      grid-column: 1 / -1;
+    /* Full height down the left, the same furniture the indicator rail wears so the two
+       screens read as one app: same panel background, same divider, same scroll. */
+    .strategies {
+      grid-column: 1;
+      grid-row: 1 / -1;
       display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.5rem 0.75rem;
-      padding: 0.5rem 0.9rem;
+      flex-direction: column;
+      gap: 0.4rem;
+      padding: 0.6rem 0.7rem;
+      overflow-y: auto;
       background: var(--bg-panel);
-      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 0.72rem;
     }
 
-    .picker {
+    .strategies-head {
+      color: var(--text-label);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .strategy-row {
       display: flex;
-      gap: 0.25rem;
-      padding: 0.2rem;
-      background: var(--bg-raised);
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      flex-direction: column;
     }
 
     .strategy {
-      display: inline-flex;
+      display: flex;
       align-items: baseline;
       gap: 0.35rem;
-      padding: 0.3rem 0.6rem;
+      width: 100%;
+      padding: 0.3rem 0.45rem;
       border: 0;
       border-radius: 4px;
       background: transparent;
       color: var(--text-secondary);
       font: inherit;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
+      text-align: left;
       cursor: pointer;
+    }
+
+    /* Wraps rather than truncates: the name is the only thing that says what the row does,
+       and «Heikin Ashi suav…» is a worse row than a two-line one. */
+    .strategy-name {
+      flex: 1;
+      min-width: 0;
     }
 
     .strategy:hover {
@@ -327,21 +561,96 @@ function storedParams(): StrategyParams {
     }
 
     .strategy-periods {
-      font-size: 0.75rem;
+      flex: none;
+      font-size: 0.72rem;
       opacity: 0.75;
       font-variant-numeric: tabular-nums;
     }
 
-    .param {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      color: var(--text-label);
-      font-size: 0.8rem;
+    /* A shell of its own under the list, so «Y | O» reads as a control over the strategies
+       above it instead of a word left loose between two of them. */
+    .mode,
+    .overlays {
+      display: flex;
+      gap: 0.25rem;
+      padding: 0.2rem;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 6px;
     }
 
-    .param input {
-      width: 3.6rem;
+    .mode-option {
+      flex: 1;
+      min-width: 1.9rem;
+      padding: 0.3rem 0.4rem;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .mode-option:hover {
+      color: var(--text);
+    }
+
+    .mode-option.active {
+      background: var(--accent);
+      color: var(--on-accent);
+    }
+
+    /* Indented under the strategy that owns them and never wrapping: the numbers of one
+       strategy are read across as one setting, and a box that drops to a line of its own reads
+       as belonging to the row below. They share the width instead. */
+    /* Wraps because a strategy is free to ask for six numbers: crushed to a third of an input
+       each they stop being editable, and a second line costs nothing while the row is open. */
+    .group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.3rem 0.45rem 0.45rem 0.55rem;
+    }
+
+    /* The rule above them is what says these two are not one more strategy. */
+    .globals,
+    .basket-control,
+    .rules {
+      padding-top: 0.55rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Its own air instead of a rule of its own: the frame around the button is already a
+       block, and a line above it would fence off a single control. */
+    .overlays {
+      margin-top: 0.55rem;
+    }
+
+    .globals {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    .basket-control {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    /* The field is named outside the select: an option on its own says «Crecimiento US» and
+       not what that list is about to be used for. */
+    .basket-label {
+      flex: 1 0 100%;
+      color: var(--text-label);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .basket-list {
+      flex: 1 0 100%;
+      min-width: 0;
       padding: 0.2rem 0.4rem;
       border: 1px solid var(--border-control);
       border-radius: 4px;
@@ -351,24 +660,127 @@ function storedParams(): StrategyParams {
       font-size: 0.8rem;
     }
 
+    .basket-run {
+      flex: 1 0 100%;
+      min-width: 0;
+      padding: 0.25rem 0.6rem;
+      border: 1px solid var(--border-control);
+      border-radius: 4px;
+      background: var(--bg-raised);
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: 0.8rem;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+    }
+
+    .basket-run:hover:not(:disabled) {
+      color: var(--text);
+      border-color: var(--border-focus);
+    }
+
+    .basket-run:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+
+    /* Capped and scrolled rather than as long as the list: fifty tickers would push the rules
+       under the fold, and the rules are what the whole column exists to set. */
+    .basket-symbols {
+      flex: 1 0 100%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.2rem;
+      max-height: 5.5rem;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      list-style: none;
+    }
+
+    .basket-symbol {
+      padding: 0.1rem 0.3rem;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: var(--bg-raised);
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+
+    .basket-symbol:hover {
+      color: var(--text);
+      border-color: var(--border-focus);
+    }
+
+    /* The one the chart above is drawing. Marked and not disabled: it is still a button, and
+       clicking it again is the harmless thing it looks like. */
+    .basket-symbol.current {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Name over box rather than beside it. Beside it, «Rápida 10» is a third of the rail
+       and the third number of a strategy already has nowhere to go; stacked, four of them
+       still share one line. */
+    .param {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      flex-direction: column;
+      gap: 0.15rem;
+      color: var(--text-label);
+      font-size: 0.62rem;
+    }
+
+    /* Clipped rather than wrapped: a two-line name would push its box out of the row. */
+    .param-name {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .param input {
+      width: 100%;
+      min-width: 0;
+      padding: 0.2rem 0.3rem;
+      border: 1px solid var(--border-control);
+      border-radius: 4px;
+      background: var(--bg-app);
+      color: var(--text-input);
+      font: inherit;
+      font-size: 0.7rem;
+      text-align: center;
+      /* The steppers eat a third of a box this narrow, and the number is typed, not clicked. */
+      appearance: textfield;
+    }
+
+    .param input::-webkit-inner-spin-button,
+    .param input::-webkit-outer-spin-button {
+      appearance: none;
+      margin: 0;
+    }
+
     .param input:focus {
       border-color: var(--border-focus);
       outline: none;
     }
 
+    /* Pushed to the foot of the rail while there is room for it: it describes everything
+       above, so it belongs after all of it rather than floating halfway up an empty column. */
     .rules {
       display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.35rem 0.9rem;
-      margin: 0 0 0 auto;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin: auto 0 0;
       color: var(--text-secondary);
-      font-size: 0.78rem;
+      font-size: 0.72rem;
     }
 
     .rule {
-      display: inline-flex;
-      align-items: center;
+      display: flex;
+      align-items: flex-start;
       gap: 0.35rem;
     }
 
@@ -377,6 +789,7 @@ function storedParams(): StrategyParams {
     .dot {
       width: 0.5rem;
       height: 0.5rem;
+      margin-top: 0.3rem;
       border-radius: 50%;
       flex: none;
     }
@@ -391,12 +804,12 @@ function storedParams(): StrategyParams {
 
     .caveat {
       color: var(--text-dim);
-      font-size: 0.72rem;
+      font-size: 0.68rem;
     }
 
     .chart-area {
-      grid-column: 1;
-      grid-row: 2;
+      grid-column: 2;
+      grid-row: 1;
       min-width: 0;
       min-height: 0;
       padding-left: 1.25rem;
@@ -405,8 +818,8 @@ function storedParams(): StrategyParams {
     /* Numbers on the left, the trades that produced them on the right: the summary is what
        gets read first, and the list is what it has to be checked against. */
     .tester {
-      grid-column: 1;
-      grid-row: 3;
+      grid-column: 2;
+      grid-row: 2;
       display: grid;
       grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
       height: 13.5rem;
@@ -578,7 +991,7 @@ function storedParams(): StrategyParams {
 
     @media (max-width: 1099px) {
       :host {
-        grid-template-columns: minmax(0, 1fr) 12rem;
+        grid-template-columns: 12rem minmax(0, 1fr) 12rem;
       }
     }
 
@@ -586,25 +999,75 @@ function storedParams(): StrategyParams {
 
     @media (max-width: 767px) {
       :host {
-        grid-template-rows: auto auto auto;
+        grid-template-rows: auto auto auto auto;
         grid-template-columns: 1fr;
         overflow: visible;
       }
 
-      /* Under the tester rather than over the chart: this screen has no sheet bar to bring a
-         floating panel back, so the list stays in the flow and the page scrolls down to it. */
+      /* Everything unstacks into the flow in source order. This screen has no sheet bar to
+         bring a floating panel back, so nothing here is allowed to float: the rail heads the
+         page, the chart follows, and the page scrolls down to the lists. */
+      .strategies,
+      .chart-area,
+      .tester,
       .dock {
         grid-column: 1;
         grid-row: auto;
-        max-height: 22rem;
       }
 
-      .setup {
-        padding: 0.5rem 0.6rem;
+      .strategies {
+        overflow: visible;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      /* Back to a bar, because a full-width column of one control per line is a page of
+         scrolling before the chart. The rules keep their own line at the end of it. */
+      .strategies,
+      .group,
+      .globals,
+      .basket-control {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem 0.7rem;
+      }
+
+      .strategy,
+      .basket-label,
+      .basket-list,
+      .basket-run {
+        flex: none;
+        width: auto;
+      }
+
+      /* Nothing to share out here: the bar is as wide as the page. */
+      .param {
+        flex: none;
+      }
+
+      .param input {
+        width: 3.4rem;
+      }
+
+      .basket-list {
+        max-width: 10rem;
+      }
+
+      .globals,
+      .basket-control,
+      .rules {
+        padding-top: 0;
+        border-top: 0;
       }
 
       .rules {
-        margin-left: 0;
+        flex: 1 0 100%;
+        margin: 0;
+      }
+
+      .dock {
+        max-height: 22rem;
       }
 
       .chart-area {
@@ -633,36 +1096,117 @@ export class StrategiesPanelComponent {
   /** The candles the strategy is tested on. The screen above owns the ticker and the timeframe. */
   readonly series = input<CandleSeries | null>(null);
   readonly chartType = input<ChartType>('CANDLES');
+  /**
+   * A list handed over from the screener rather than saved: it rides in shaped like a watchlist
+   * so everything below it — the dropdown, the run, the hint — cannot tell the two apart. It is
+   * not persisted on purpose; a screen is a question you asked once, and saving every one of
+   * them would leave the watchlist panel full of lists nobody named.
+   */
+  readonly sentList = input<Watchlist | null>(null);
+
+  /**
+   * A ticker picked out of the basket. The shell owns the symbol — the chart screen and the
+   * watchlist on the right read the same one — so this leaves rather than being loaded here:
+   * two components loading candles for the same app is two answers to «which ticker is up».
+   */
+  readonly symbolPicked = output<string>();
 
   protected readonly strategies = STRATEGIES;
-  protected readonly chartIndicators = STRATEGY_INDICATORS;
+  protected readonly modes = COMBINE_MODES;
+  protected readonly objective = TAKE_PROFIT;
+  protected readonly stop = STOP_LOSS;
+  protected readonly volumeGate = VOLUME_FILTER;
+  protected readonly cost = TRADE_COST;
   protected readonly sparkWidth = SPARK_WIDTH;
   protected readonly sparkHeight = SPARK_HEIGHT;
 
   protected readonly percent = formatPercent;
   protected readonly price = formatPrice;
 
-  protected readonly strategy = signal<Strategy>(storedStrategy());
+  protected readonly ticked = signal<ReadonlyArray<Strategy>>(storedStrategies());
+  protected readonly mode = signal<CombineMode>(storedMode());
   protected readonly params = signal<StrategyParams>(storedParams());
+  /**
+   * What the run charged, spelled out under the controls. Zero keeps the old wording rather
+   * than printing «0 pb»: the point of the line is that the number is never a surprise.
+   */
+  protected readonly costLine = computed(() => {
+    const charged = this.params().tradeCost;
+    return charged > 0 ? `${charged} pb por operación` : 'sin comisiones';
+  });
+  /** Off by default: the pane it opens costs the price a fifth of its height. */
+  protected readonly showVolume = signal(localStorage.getItem(VOLUME_KEY) === 'on');
+
+  private readonly market = inject(MarketService);
+  private readonly watchlists = inject(WatchlistService);
+
+  /** The saved lists, read once when the screen opens. The panel docked to the right owns editing them. */
+  private readonly saved = signal<Watchlist[]>([]);
+
+  /** What the dropdown offers: the sent list first, because it is why you came to this screen. */
+  protected readonly lists = computed(() => {
+    const sent = this.sentList();
+    return sent ? [sent, ...this.saved()] : this.saved();
+  });
+
+  protected readonly listId = signal<string | null>(null);
+  protected readonly basket = signal<BasketRun | null>(null);
+  /** How far the loading got, and null when nothing is running. */
+  protected readonly progress = signal<{ done: number; total: number } | null>(null);
+
+  protected readonly selectedList = computed(() =>
+    this.lists().find(({ id }) => id === this.listId()),
+  );
 
   /**
-   * The whole screen, recomputed from the candles and the two periods. It is a few passes over
-   * an array the browser already has, so there is nothing to debounce and nothing to ask the
-   * backend: moving a period repaints on the same frame the number changes.
+   * A run is only shown against the candles it was measured on: the same rules over weekly bars
+   * are a different test, and a median from the daily one sitting under a weekly chart is the
+   * kind of wrong number that never announces itself. Coming back to the timeframe brings it
+   * back rather than making it be run again.
+   */
+  protected readonly visibleBasket = computed(() => {
+    const run = this.basket();
+    return run && run.timeframe === this.series()?.timeframe ? run : null;
+  });
+
+  protected readonly canRunBasket = computed(
+    () => this.progress() === null && !!this.series() && !!this.selectedList()?.entries.length,
+  );
+
+  /**
+   * The whole screen, recomputed from the candles, the ticked rules and their numbers. It is a
+   * few passes over an array the browser already has, so there is nothing to debounce and
+   * nothing to ask the backend: ticking a strategy repaints on the same frame it is clicked.
    */
   protected readonly backtest = computed(() =>
-    runBacktest(this.strategy(), this.series()?.candles ?? [], this.params()),
+    runBacktest(this.ticked(), this.mode(), this.series()?.candles ?? [], this.params()),
   );
   protected readonly stats = computed(() => this.backtest().stats);
   protected readonly trades = computed(() => this.backtest().trades);
   /** Newest first: the last trade is the one being looked for, and the panel is four rows tall. */
   protected readonly recentFirst = computed(() => [...this.trades()].reverse());
 
-  /** The two averages the strategy crosses, dropped into the chart's own EMA slots. */
+  /**
+   * The chart draws the ticked strategies and nothing else — their own lines, over the candles,
+   * with nothing the legend of the other screen has switched on. Both halves come out of the
+   * same pass so the slots and the indicators using them can never disagree.
+   */
+  private readonly chart = computed(() => chartSetup(this.ticked(), this.params()));
+  /**
+   * The strategies' own indicators plus whatever is switched on by hand. Copied rather than
+   * added to in place: the set behind it is memoised, and the next run would find the volume
+   * already in it and never take it back out.
+   */
+  protected readonly chartIndicators = computed(() => {
+    const indicators = new Set<Indicator>(this.chart().indicators);
+    if (this.showVolume()) {
+      indicators.add('VOLUME');
+    }
+    return indicators;
+  });
   protected readonly chartPeriods = computed<IndicatorPeriods>(() => ({
     ...DEFAULT_PERIODS,
-    emaFast: this.params().emaFast,
-    emaSlow: this.params().emaSlow,
+    ...this.chart().periods,
   }));
 
   /**
@@ -700,7 +1244,37 @@ export class StrategiesPanelComponent {
   });
 
   constructor() {
-    effect(() => localStorage.setItem(STRATEGY_KEY, this.strategy().id));
+    // The single-strategy key has already been read into the list; leaving it behind would
+    // have a later version restoring a choice that was superseded two sessions ago.
+    localStorage.removeItem(LEGACY_STRATEGY_KEY);
+
+    effect(() =>
+      localStorage.setItem(STRATEGIES_KEY, JSON.stringify(this.ticked().map(({ id }) => id))),
+    );
+    effect(() => localStorage.setItem(MODE_KEY, this.mode()));
+    effect(() => localStorage.setItem(VOLUME_KEY, this.showVolume() ? 'on' : 'off'));
+
+    void this.watchlists.list().then((lists) => {
+      this.saved.set(lists);
+      // Only when nothing is chosen yet: a list sent from the screener can land before this
+      // answers, and the first watchlist quietly taking the dropdown back would run the rules
+      // over symbols nobody asked about.
+      if (!this.listId()) {
+        this.listId.set(lists[0]?.id ?? null);
+      }
+    });
+
+    // A new list from the screener takes the dropdown, dropping whatever run was on screen: it
+    // was measured on the previous list, and leaving it under the new name is a median of the
+    // wrong symbols. Selecting it is as far as it goes — the run itself is still a button press.
+    effect(() => {
+      const sent = this.sentList();
+      if (sent) {
+        this.listId.set(sent.id);
+        this.basket.set(null);
+      }
+    });
+
     effect(() => {
       const moved = Object.entries(this.params()).filter(
         ([key, value]) => value !== DEFAULT_STRATEGY_PARAMS[key as keyof StrategyParams],
@@ -709,8 +1283,107 @@ export class StrategiesPanelComponent {
     });
   }
 
-  protected select(strategy: Strategy): void {
-    this.strategy.set(strategy);
+  protected isTicked(strategy: Strategy): boolean {
+    return this.ticked().some(({ id }) => id === strategy.id);
+  }
+
+  /**
+   * Ticking keeps the catalogue order rather than the clicking order: it is the order the
+   * chart hands out its slots by, and which box was pressed first is not a preference anyone
+   * expressed. The last ticked one cannot be unticked — nothing ticked is a screen of zeroes
+   * with no rule on it to explain them, which reads as a broken backtest and not an empty one.
+   */
+  protected toggle(strategy: Strategy): void {
+    this.ticked.update((current) => {
+      const ids = new Set(current.map(({ id }) => id));
+      if (ids.has(strategy.id)) {
+        return ids.size > 1 ? current.filter(({ id }) => id !== strategy.id) : current;
+      }
+      ids.add(strategy.id);
+      return STRATEGIES.filter(({ id }) => ids.has(id));
+    });
+    this.basket.set(null);
+  }
+
+  protected setMode(mode: CombineMode): void {
+    this.mode.set(mode);
+    this.basket.set(null);
+  }
+
+  /**
+   * Runs the ticked rules over every symbol of the chosen list. Dropped rather than recomputed
+   * when the rules move: fifty histories per keystroke is not a thing to do on a number box,
+   * and a median left on screen under rules it was not measured with is worse than no median.
+   */
+  protected async testBasket(): Promise<void> {
+    const list = this.selectedList();
+    const series = this.series();
+    if (!list || !series || this.progress() !== null) {
+      return;
+    }
+
+    this.basket.set(null);
+    this.progress.set({ done: 0, total: list.entries.length });
+    try {
+      const run = await runBasket(
+        this.market,
+        list.name,
+        list.entries,
+        series.timeframe,
+        this.ticked(),
+        this.mode(),
+        this.params(),
+        (done, total) => this.progress.set({ done, total }),
+      );
+      this.basket.set(run);
+    } finally {
+      this.progress.set(null);
+    }
+  }
+
+  /** Why the button is off, on the button itself: a disabled control that says nothing is a bug. */
+  protected basketHint(): string {
+    if (!this.series()) {
+      return 'Busca un ticker para fijar la temporalidad de la prueba';
+    }
+    if (!this.lists().length) {
+      return 'Crea una lista para probar la estrategia sobre varios símbolos';
+    }
+    return this.selectedList()?.entries.length
+      ? `Prueba estas reglas sobre ${this.selectedList()?.entries.length} símbolos`
+      : 'La lista está vacía';
+  }
+
+  /**
+   * The ticked rules as one sentence, joined by whatever the combination is set to. The volume
+   * filter is named at the end rather than folded into the join: it is not one of the ticked
+   * rules and an « y » would put it up for the combination to vote on, which it never is —
+   * with the mode on O it still has to be met.
+   */
+  protected entryLine(): string {
+    const rules = this.ticked()
+      .map(({ hold }) => hold)
+      .join(this.mode() === 'ALL' ? ' y ' : ' o ');
+    const gate = this.params().volumeFilter;
+    return gate > 0 ? `${rules}, y solo si el volumen llega al ${gate} % de su media` : rules;
+  }
+
+  /**
+   * The other half of it. The objective and the stop are named here and not among the rules:
+   * either one closes a trade the rules still wanted open, and a screen that only ever hits a
+   * level would otherwise show an exit rule that never once fired.
+   */
+  protected exitLine(): string {
+    const { takeProfit, stopLoss } = this.params();
+    const base = 'Fuera en cuanto deje de cumplirse';
+    const levels: string[] = [];
+    if (takeProfit > 0) {
+      levels.push(`al ganar ${takeProfit} %`);
+    }
+    if (stopLoss > 0) {
+      levels.push(`al perder ${stopLoss} %`);
+    }
+    return levels.length ? `${base}, o ${levels.join(', o ')}` : base;
   }
 
   protected suffix(strategy: Strategy): string {
@@ -729,6 +1402,7 @@ export class StrategiesPanelComponent {
       ? param.defaultValue
       : Math.min(param.max, Math.max(param.min, parsed));
     this.params.update((params) => ({ ...params, [param.key]: value }));
+    this.basket.set(null);
     return `${value}`;
   }
 

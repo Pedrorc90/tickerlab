@@ -71,6 +71,8 @@ export interface ChartPalette {
    */
   tradeBuy: string;
   tradeSell: string;
+  /** The dotted leader that ties a marker back to the bar it was taken on. */
+  tradeLink: string;
 }
 
 export interface Theme {
@@ -138,6 +140,7 @@ export const THEMES: readonly Theme[] = [
       adxTrendBand: 'rgba(199, 203, 216, 0.45)',
       tradeBuy: '#22c55e',
       tradeSell: '#fb3b53',
+      tradeLink: 'rgba(255, 255, 255, 0.72)',
     },
   },
   {
@@ -194,6 +197,8 @@ export const THEMES: readonly Theme[] = [
       adxTrendBand: 'rgba(90, 83, 71, 0.5)',
       tradeBuy: '#1f7a4d',
       tradeSell: '#a3271a',
+      // White would vanish on paper: same role, the darkest neutral the theme already uses.
+      tradeLink: 'rgba(90, 83, 71, 0.75)',
     },
   },
 ];
