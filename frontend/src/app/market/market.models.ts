@@ -1,5 +1,5 @@
 /** Chart granularity. Mirrors the backend `Timeframe` enum. */
-export type Timeframe = 'DAY' | 'WEEK' | 'MONTH';
+export type Timeframe = 'QUARTER_HOUR' | 'HOUR' | 'DAY' | 'WEEK' | 'MONTH';
 
 /**
  * `short` is what the buttons wear: three initials read as one control, where three words read
@@ -7,6 +7,8 @@ export type Timeframe = 'DAY' | 'WEEK' | 'MONTH';
  * the tooltip and for anything that has room to spell it out.
  */
 export const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string; short: string }> = [
+  { value: 'QUARTER_HOUR', label: '15 minutos', short: '15m' },
+  { value: 'HOUR', label: 'Hora', short: '1H' },
   { value: 'DAY', label: 'Día', short: 'D' },
   { value: 'WEEK', label: 'Semana', short: 'S' },
   { value: 'MONTH', label: 'Mes', short: 'M' },

@@ -6,6 +6,10 @@ package dev.tickerlab.market;
  */
 public enum Timeframe {
 
+    // Yahoo caps intraday history, so neither range is a choice: 60 days is its ceiling for
+    // anything under the hour, 730 for the hourly bar.
+    QUARTER_HOUR("15m", "60d"),
+    HOUR("1h", "730d"),
     DAY("1d", "5y"),
     WEEK("1wk", "10y"),
     MONTH("1mo", "max");
