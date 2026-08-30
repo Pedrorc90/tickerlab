@@ -1,7 +1,9 @@
 package dev.tickerlab.screener;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -109,4 +111,32 @@ public interface SymbolRepository extends JpaRepository<Symbol, String>, JpaSpec
               AND s.score IS DISTINCT FROM scored.value
             """, nativeQuery = true)
     int scoreStrength();
+
+    /**
+     * Empties the premarket pair before a run fills it again. It is wiped here and never by an
+     * ordinary quote sweep: Yahoo stops sending the premarket block at the bell, so a sweep at
+     * 10:00 would blank a list built at 09:20 — the one moment it is being read. Clearing it at
+     * the start of the next run instead means what is on the table is always this morning's.
+     */
+    @Modifying
+    @Query("""
+            update Symbol s set s.gapPercent = null, s.premarketVolume = null
+            where s.gapPercent is not null or s.premarketVolume is not null
+            """)
+    int clearPremarket();
+
+    /**
+     * The symbols worth a second call, biggest move first. The volume floor and the price floor
+     * are not a view filter moved down here: the second call costs an API budget and a shell at
+     * forty cents gapping 60% on two prints would spend it, so the cut happens before the money
+     * does. Ordered by the size of the move in either direction — a gap down is a setup too.
+     */
+    @Query("""
+            select s.symbol from Symbol s
+            where abs(s.gapPercent) >= :minGap
+              and s.price >= :minPrice
+              and s.avgVolume3m >= :minAvgVolume
+            order by abs(s.gapPercent) desc
+            """)
+    List<String> findGapCandidates(BigDecimal minGap, BigDecimal minPrice, Long minAvgVolume, Pageable page);
 }

@@ -1,6 +1,7 @@
 package dev.tickerlab.screener;
 
 import jakarta.annotation.PreDestroy;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -31,8 +33,31 @@ public class QuoteRefresher {
     /** A short breather between batches; the measured sweep never tripped a rate limit. */
     private static final long BATCH_PAUSE_MS = 50;
 
+    /**
+     * How big a move earns the second call. Three percent is where a gap stops being the spread
+     * and starts being news, and it is the number that decides how much of the Alpaca budget the
+     * morning spends: on a quiet day it keeps a few dozen symbols, on a loud one it hits the cap.
+     */
+    private static final BigDecimal MIN_GAP = new BigDecimal("3");
+
+    /**
+     * The two floors under the gap. A dollar and a hundred thousand shares a day is not a view
+     * of what is worth trading — it is the line under which the premarket volume would not be
+     * measuring anything: a sub-dollar shell gaps 60% on two prints, every morning, forever.
+     */
+    private static final BigDecimal MIN_PRICE = BigDecimal.ONE;
+    private static final long MIN_AVG_VOLUME = 100_000L;
+
+    /**
+     * Ceiling on the second pass, in symbols. Two hundred is two calls and a list nobody could
+     * read anyway; what it really buys is that a broken sweep — every gap null, or every gap
+     * huge — cannot turn into six thousand calls to a rate-limited endpoint.
+     */
+    private static final int MAX_CANDIDATES = 200;
+
     private final SymbolRepository repository;
     private final YahooQuoteClient client;
+    private final AlpacaBarsClient alpaca;
     private final TransactionTemplate transactions;
 
     /**
@@ -48,9 +73,11 @@ public class QuoteRefresher {
         return thread;
     });
 
-    QuoteRefresher(SymbolRepository repository, YahooQuoteClient client, TransactionTemplate transactions) {
+    QuoteRefresher(SymbolRepository repository, YahooQuoteClient client, AlpacaBarsClient alpaca,
+                   TransactionTemplate transactions) {
         this.repository = repository;
         this.client = client;
+        this.alpaca = alpaca;
         this.transactions = transactions;
     }
 
@@ -84,6 +111,81 @@ public class QuoteRefresher {
             }
         });
         return true;
+    }
+
+    /**
+     * The morning run, and the only caller that fills the premarket pair. Same one-at-a-time
+     * guard as an ordinary sweep, because it contains one.
+     */
+    public boolean triggerPremarket() {
+        if (!running.compareAndSet(false, true)) {
+            return false;
+        }
+        worker.submit(() -> {
+            try {
+                premarketSweep();
+            } catch (RuntimeException failure) {
+                log.warn("Premarket sweep failed: {}", failure.getMessage());
+            } finally {
+                running.set(false);
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Three steps that have to happen in this order. The pair is wiped first so nothing from
+     * yesterday survives into a morning that fails halfway. Then the ordinary Yahoo sweep, which
+     * is what writes the gap — that field rides along in the quote the sweep already fetches, so
+     * this costs no extra call. Only then Alpaca, and only for the handful the gap kept: the
+     * premarket volume is the one number that needs a second provider, and asking it about the
+     * whole universe would be six thousand symbols to learn that five thousand of them did not
+     * trade before the bell.
+     */
+    private void premarketSweep() {
+        transactions.execute(status -> repository.clearPremarket());
+        sweep();
+        if (!alpaca.isConfigured()) {
+            log.info("Premarket sweep: gaps written, volume skipped — no Alpaca credentials set");
+            return;
+        }
+        List<String> candidates = repository.findGapCandidates(
+                MIN_GAP, MIN_PRICE, MIN_AVG_VOLUME, PageRequest.of(0, MAX_CANDIDATES));
+        long start = System.currentTimeMillis();
+        int measured = 0;
+        for (int index = 0; index < candidates.size(); index += AlpacaBarsClient.BATCH_SIZE) {
+            List<String> batch = candidates.subList(index,
+                    Math.min(index + AlpacaBarsClient.BATCH_SIZE, candidates.size()));
+            measured += applyPremarketQuietly(batch);
+        }
+        log.info("Premarket sweep finished: {} of {} gapping symbols got their volume, in {} ms",
+                measured, candidates.size(), System.currentTimeMillis() - start);
+    }
+
+    /** One rejected batch must not cost the run, same rule as the quote sweep. */
+    private int applyPremarketQuietly(List<String> batch) {
+        try {
+            return applyPremarket(batch);
+        } catch (RuntimeException failure) {
+            log.warn("Skipped premarket volume for {} symbols starting at {}: {}",
+                    batch.size(), batch.getFirst(), failure.getMessage());
+            return 0;
+        }
+    }
+
+    private int applyPremarket(List<String> batch) {
+        Map<String, Long> volumes = alpaca.premarketVolume(batch);
+        if (volumes.isEmpty()) {
+            return 0;
+        }
+        return transactions.execute(status -> {
+            List<Symbol> symbols = repository.findAllById(volumes.keySet());
+            for (Symbol symbol : symbols) {
+                symbol.premarketVolume(volumes.get(symbol.getSymbol()));
+            }
+            repository.saveAll(symbols);
+            return symbols.size();
+        });
     }
 
     private boolean isStale() {

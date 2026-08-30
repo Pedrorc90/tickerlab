@@ -66,6 +66,9 @@ final class SymbolSpecs {
             atMost(where, builder, root.get("analystRating"), filters.maxAnalystRating());
             atLeast(where, builder, root.get("rsRating"), filters.minRsRating());
             atLeast(where, builder, root.get("score"), filters.minScore());
+            atLeast(where, builder, root.get("gapPercent"), filters.minGapPercent());
+            atMost(where, builder, root.get("gapPercent"), filters.maxGapPercent());
+            atLeast(where, builder, root.get("premarketVolume"), filters.minPremarketVolume());
 
             // The one bound that reads two columns at once. Multiplied rather than divided: a
             // ticker whose average is zero — freshly listed, or never traded — would take the

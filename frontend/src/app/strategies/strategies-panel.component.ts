@@ -37,6 +37,7 @@ import {
   TRADE_COST,
   VOLUME_FILTER,
   chartSetup,
+  paramLines,
   paramSuffix,
 } from './strategy.models';
 
@@ -152,18 +153,22 @@ function storedParams(): StrategyParams {
 
           @if (isTicked(option)) {
             <div class="group">
-              @for (param of option.params; track param.key) {
-                <label class="param">
-                  <span class="param-name">{{ param.label }}</span>
-                  <input
-                    #box
-                    type="number"
-                    [min]="param.min"
-                    [max]="param.max"
-                    [value]="params()[param.key]"
-                    (change)="box.value = setParam(param, box.value)"
-                  />
-                </label>
+              @for (line of lines(option); track $index) {
+                <div class="param-line">
+                  @for (param of line; track param.key) {
+                    <label class="param">
+                      <span class="param-name">{{ param.label }}</span>
+                      <input
+                        #box
+                        type="number"
+                        [min]="param.min"
+                        [max]="param.max"
+                        [value]="params()[param.key]"
+                        (change)="box.value = setParam(param, box.value)"
+                      />
+                    </label>
+                  }
+                </div>
               }
             </div>
           }
@@ -608,9 +613,18 @@ function storedParams(): StrategyParams {
        each they stop being editable, and a second line costs nothing while the row is open. */
     .group {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       gap: 0.35rem;
       padding: 0.3rem 0.45rem 0.45rem 0.55rem;
+    }
+
+    /* One line of a strategy's numbers, and the reason the group stacks instead of wrapping:
+       the boxes share the width they are given, so seven of them on one line are seven boxes
+       too narrow to read rather than two comfortable lines. Where it breaks comes from the
+       strategy; the panel only draws as many lines as it is handed. */
+    .param-line {
+      display: flex;
+      gap: 0.35rem;
     }
 
     /* The rule above them is what says these two are not one more strategy. */
@@ -1041,6 +1055,12 @@ function storedParams(): StrategyParams {
         width: auto;
       }
 
+      /* The lines dissolve back into the bar: it is as wide as the page and wraps on its
+         own, and a break placed for a rail four boxes wide would leave a hole in it. */
+      .param-line {
+        display: contents;
+      }
+
       /* Nothing to share out here: the bar is as wide as the page. */
       .param {
         flex: none;
@@ -1388,6 +1408,11 @@ export class StrategiesPanelComponent {
 
   protected suffix(strategy: Strategy): string {
     return paramSuffix(strategy, this.params());
+  }
+
+  /** The strategy's numbers, split into the lines it asked to be drawn on. */
+  protected lines(strategy: Strategy): ReadonlyArray<ReadonlyArray<StrategyParam>> {
+    return paramLines(strategy);
   }
 
   /**

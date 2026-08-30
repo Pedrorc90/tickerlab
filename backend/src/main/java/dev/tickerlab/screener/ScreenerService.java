@@ -36,7 +36,7 @@ public class ScreenerService {
             "symbol", "name", "exchange", "price", "changePercent", "volume", "marketCap",
             "per", "priceToBook", "dividendYield", "change52w", "fromHigh52w", "vsSma50", "vsSma200",
             "fromLow52w", "avgVolume3m", "sharesOutstanding", "forwardPer", "eps", "analystRating",
-            "rsRating", "score");
+            "rsRating", "score", "gapPercent", "premarketVolume");
 
     private static final String DEFAULT_SORT = "symbol";
 
@@ -112,6 +112,11 @@ public class ScreenerService {
     /** Forces a sweep now, whatever the age of the quotes. Returns false if one is running. */
     public boolean refreshQuotes() {
         return refresher.trigger();
+    }
+
+    /** The morning run: gaps for the universe, premarket volume for the few that gapped. */
+    public boolean refreshPremarket() {
+        return refresher.triggerPremarket();
     }
 
     @Transactional(readOnly = true)

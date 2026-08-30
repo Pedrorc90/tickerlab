@@ -60,8 +60,12 @@ export function stanceOf(strategy: Strategy, candles: Candle[], params: Strategy
       return ichimokuStance(candles, params);
     case 'ICHIMOKU_TK':
       return tenkanKijunStance(candles, params);
+    case 'ICHIMOKU_TK_KUMO':
+      return tenkanKijunKumoStance(candles, params);
     case 'ADX':
       return adxStance(candles, params);
+    case 'GAP_UP':
+      return gapStance(candles, params);
   }
 }
 
@@ -158,6 +162,11 @@ function rsiStance(candles: Candle[], params: StrategyParams): Stance {
  * one thing that has to end it — counting bars since the first green would let a body that
  * flickered red twice confirm on the same bar as one that never did.
  *
+ * A green can close it too. The size filter has a second figure and under it the body is
+ * spent: what was a run is a green dragging a wick, which is where the move ends rather than
+ * where the red admits it. It is read before everything else and it clears both streaks —
+ * the bar that ends a run cannot be the bar that extends it.
+ *
  * A body that fails the size filter is neither colour: it puts both counts back to zero
  * rather than counting for the other side. It is no evidence of the opposite trend, but it
  * does break the run — and a run allowed to survive the bar that broke it is not a run.
@@ -185,8 +194,9 @@ function shaStance(candles: Candle[], params: StrategyParams): Stance {
       return null;
     }
     const green = bar.close > bar.open;
+    const spent = green && spentBody(bar, params.shaBodyExit);
     const minimum = green ? params.shaBodyBuy : params.shaBodySell;
-    if (!bodyOverWick(bar, green, minimum)) {
+    if (spent || !bodyOverWick(bar, green, minimum)) {
       greens = 0;
       reds = 0;
     } else if (green) {
@@ -196,7 +206,7 @@ function shaStance(candles: Candle[], params: StrategyParams): Stance {
       reds++;
       greens = 0;
     }
-    if (holding && reds >= params.shaExitBars) {
+    if (spent || (holding && reds >= params.shaExitBars)) {
       holding = false;
     } else if (!holding && greens >= params.shaEntryBars) {
       holding = true;
@@ -230,6 +240,19 @@ function bodyOverWick(bar: HeikinAshiBar, green: boolean, minimum: number): bool
     ? Math.min(bar.open, bar.close) - bar.low
     : bar.high - Math.max(bar.open, bar.close);
   return body * 100 >= wick * minimum;
+}
+
+/**
+ * The same comparison as `bodyOverWick`, tripped from underneath. Written against it instead
+ * of beside it so the two numbers stay one measurement: 166 to enter and 33 to leave is a
+ * band, and a second arithmetic here would make it two rules that merely look alike.
+ *
+ * Only greens are ever asked. A red body swallowed by its wick is the exit arriving the
+ * ordinary way and the streak already counts it; asking this of a red would close a position
+ * that the colour had closed already. Zero is off.
+ */
+function spentBody(bar: HeikinAshiBar, level: number): boolean {
+  return level > 0 && !bodyOverWick(bar, true, level);
 }
 
 /**
@@ -280,6 +303,102 @@ function ichimokuStance(candles: Candle[], params: StrategyParams): Stance {
 function tenkanKijunStance(candles: Candle[], params: StrategyParams): Stance {
   const lines = ichimoku(candles, params.ichimokuConversion, params.ichimokuBase);
   return above(candles, lines.conversion, lines.base);
+}
+
+/**
+ * The cross itself, and where it landed. Three readings of Ichimoku sit in the catalogue and
+ * this is the only one that is an event: `ICHIMOKU_TK` is in for every bar the conversion
+ * spends above the base, while here the bar the lines crossed on has to answer for itself.
+ * A stance comes out of it anyway, because a stance is what combines — the entry is the
+ * qualifying cross, and from there the position is held on the plain cross's own condition
+ * until the conversion closes back under the base.
+ *
+ * The cloud is read at the candle's own time, so it is the one that was drawn there and could
+ * be seen: the same lookup `ichimokuStance` makes, and for the same reason.
+ *
+ * «Not inside the cloud» is written as «the base line over the top of it»: at an upward cross
+ * the base is the lower of the two lines, so a single comparison puts both of them clear of
+ * the spans. Above and not merely outside — a cross under the cloud is outside it too, and it
+ * is the weak signal this whole setup exists to skip. It is also the strict half of the rule:
+ * the lines lag the price, so they are often still in the cloud on the bar the close clears it.
+ *
+ * `previous` starts as null and the first bar that answers claims no cross. Whether the lines
+ * had already crossed while the cloud was still unreadable is not something this can know, and
+ * an entry invented there would be taken on a bar nobody could have seen.
+ */
+function tenkanKijunKumoStance(candles: Candle[], params: StrategyParams): Stance {
+  const lines = ichimoku(
+    candles,
+    params.ichimokuConversion,
+    params.ichimokuBase,
+    params.ichimokuSpan,
+  );
+  const conversion = byTime(lines.conversion);
+  const base = byTime(lines.base);
+  const cloud = new Map(lines.cloud.map((point) => [point.time, point]));
+  const dips = pullbacks(candles, params.ichimokuBase);
+  let holding = false;
+  let previous: boolean | null = null;
+
+  return stanceFrom(candles, (candle) => {
+    const tenkan = conversion.get(candle.time);
+    const kijun = base.get(candle.time);
+    const point = cloud.get(candle.time);
+    if (tenkan === undefined || kijun === undefined || point === undefined) {
+      return null;
+    }
+
+    const over = tenkan > kijun;
+    const crossed = over && previous === false;
+    previous = over;
+
+    const top = Math.max(point.spanA, point.spanB);
+    const bullish =
+      params.ichimokuKumo <= 0 ||
+      point.spanA - point.spanB >= (candle.close * params.ichimokuKumo) / 100;
+    const corrected =
+      params.ichimokuPullback <= 0 || (dips.get(candle.time) ?? 0) >= params.ichimokuPullback;
+
+    if (holding && !over) {
+      holding = false;
+    } else if (!holding && crossed && candle.close > top && kijun > top && bullish && corrected) {
+      holding = true;
+    }
+    return holding;
+  });
+}
+
+/**
+ * How far the price fell inside the last `window` bars, as a share of the high it fell from.
+ * The peak is carried forward and every low is measured against the highest one before it, so
+ * what comes out is the deepest drop the window holds rather than the distance from its first
+ * bar: a window that rallied and then gave a third of it back has corrected, whatever it
+ * opened at.
+ *
+ * A share and not a difference, so one number says the same thing at three euros and at three
+ * hundred. Highs and lows rather than closes: a correction is what the price did inside the
+ * bars, and the close is only where each of them happened to stop.
+ *
+ * Every bar gets a figure even though only the crossing ones are ever asked. The scan is the
+ * same cost as the midpoints the lines are built from, and a filter that computes itself the
+ * same way whether or not it is switched on is one less thing that can answer differently.
+ */
+function pullbacks(candles: Candle[], window: number): Map<number, number> {
+  const depths = new Map<number, number>();
+
+  for (let i = 0; i < candles.length; i++) {
+    let peak = -Infinity;
+    let deepest = 0;
+    for (let j = Math.max(0, i - window + 1); j <= i; j++) {
+      peak = Math.max(peak, candles[j].high);
+      if (peak > 0) {
+        deepest = Math.max(deepest, ((peak - candles[j].low) / peak) * 100);
+      }
+    }
+    depths.set(candles[i].time, deepest);
+  }
+
+  return depths;
 }
 
 /**
@@ -341,6 +460,73 @@ function stanceFrom(candles: Candle[], verdict: (candle: Candle) => boolean | nu
   }
 
   return from < 0 ? silent(candles) : { from, held };
+}
+
+/**
+ * The session that opened with a gap up, held until its last bar. The only stance built out of
+ * the calendar instead of an indicator, and the only one that is flat every night.
+ *
+ * Two things it cannot do and does not pretend to. It needs an intraday timeframe: one bar per
+ * session means the day opens and closes on the same close, so on daily and above it says
+ * nothing rather than testing something else. And the entry is the close of the first bar and
+ * not the open of the session — every decision here is taken on a close, and buying the open
+ * would be filling at a price this backtest never proves was available to it. On 15 minutes
+ * that is a quarter of an hour of the move already gone, which is the honest version.
+ *
+ * The last bar of the session is deliberately not held: the engine closes on the bar the
+ * stance turns false, so that bar is the exit and its close is the price. Holding it would
+ * push the exit into the next session and make this an overnight strategy.
+ */
+function gapStance(candles: Candle[], { gapPercent }: StrategyParams): Stance {
+  const sessions = sessionsOf(candles);
+  if (sessions.length < 2 || !sessions.some((session) => session.length > 1)) {
+    return silent(candles);
+  }
+
+  const held = candles.map(() => false);
+
+  for (let s = 1; s < sessions.length; s++) {
+    const session = sessions[s];
+    const previous = sessions[s - 1];
+    const previousClose = candles[previous[previous.length - 1]].close;
+    const open = candles[session[0]].open;
+    // A flat open is not a gap, so zero is «any gap up» and not «every session»: the size is
+    // what the number filters, the gap itself is the rule.
+    if (!previousClose || open <= previousClose) {
+      continue;
+    }
+    if ((open / previousClose - 1) * 100 < gapPercent) {
+      continue;
+    }
+    for (let i = 0; i < session.length - 1; i++) {
+      held[session[i]] = true;
+    }
+  }
+
+  // The first session has no close behind it to measure a gap against, so the strategy has no
+  // opinion on it — the same silence an average keeps over the bars shorter than its period.
+  return { from: sessions[1][0], held };
+}
+
+/**
+ * Bar indices grouped by session, in order. The UTC date is enough to split them: a US session
+ * runs 13:30 to 20:00 UTC, so it never straddles midnight there — and these candles carry no
+ * extended hours, which is why the first index of a group is the opening bar.
+ */
+function sessionsOf(candles: Candle[]): number[][] {
+  const sessions: number[][] = [];
+  let day = '';
+
+  candles.forEach((candle, i) => {
+    const stamp = new Date(candle.time * 1000).toISOString().slice(0, 10);
+    if (stamp !== day) {
+      sessions.push([]);
+      day = stamp;
+    }
+    sessions[sessions.length - 1].push(i);
+  });
+
+  return sessions;
 }
 
 function byTime(points: IndicatorPoint[]): Map<number, number> {

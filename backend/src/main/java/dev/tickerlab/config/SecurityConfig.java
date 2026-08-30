@@ -14,6 +14,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -34,6 +35,10 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
+                        // Called by the scheduled task on this machine, which has no session to
+                        // send. It carries its own token instead and turns itself off when that
+                        // token is unset, so this line opens the route and not the endpoint.
+                        .requestMatchers(HttpMethod.POST, "/api/screener/premarket").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         // Anything else is the built Angular bundle served by this same jar.
                         .anyRequest().permitAll())

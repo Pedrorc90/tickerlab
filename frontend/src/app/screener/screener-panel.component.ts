@@ -100,6 +100,11 @@ const COLUMNS: readonly Column[] = [
   // Next to the volume it qualifies rather than at the end: read alone, 40 M says nothing
   // about whether today is busy for this ticker, and the pair says it without arithmetic.
   { field: 'relVolume', label: 'Vol. rel.', numeric: true, derived: true },
+  // The same pair of questions asked before the bell, so they sit with the volume that answers
+  // it during the session. Sortable, unlike the relative volume beside them: these two are
+  // stored columns, so ordering by them ranks the universe instead of reordering the page.
+  { field: 'gapPercent', label: 'Hueco', numeric: true },
+  { field: 'premarketVolume', label: 'Vol. pre.', numeric: true },
   { field: 'marketCap', label: 'Capitalización', numeric: true },
   { field: 'per', label: 'PER', numeric: true },
   { field: 'eps', label: 'BPA', numeric: true },
@@ -374,6 +379,21 @@ function optionIndex(id: string, label: unknown): number {
               >
                 {{ multiple(relVolume(row)) }}
               </span>
+              <!-- The premarket chips appear only when there is one: in the narrow card the
+                   row is four lines of chips, and two dashes on every ticker all day would
+                   cost more room than the pair is worth outside the morning. -->
+              @if (row.gapPercent !== null) {
+                <span
+                  class="chip"
+                  [class.up]="(row.gapPercent ?? 0) > 0"
+                  [class.down]="(row.gapPercent ?? 0) < 0"
+                >
+                  <b>Hueco</b> {{ percent(row.gapPercent) }}
+                </span>
+              }
+              @if (row.premarketVolume !== null) {
+                <span class="chip"><b>Vol pre</b> {{ compact(row.premarketVolume) }}</span>
+              }
               <span class="chip"><b>PER</b> {{ ratio(row.per) }}</span>
               <span class="chip" [class.down]="(row.eps ?? 0) < 0"><b>BPA</b> {{ ratio(row.eps) }}</span>
               <span
@@ -475,6 +495,17 @@ function optionIndex(id: string, label: unknown): number {
                 >
                   {{ multiple(relVolume(row)) }}
                 </td>
+                <!-- Empty on almost every row and that is the design: the volume is only
+                     measured for the symbols that gapped, and only once the morning run has
+                     gone. A dash here means "not asked", never "nothing traded". -->
+                <td
+                  class="col-gapPercent numeric"
+                  [class.up]="(row.gapPercent ?? 0) > 0"
+                  [class.down]="(row.gapPercent ?? 0) < 0"
+                >
+                  {{ percent(row.gapPercent) }}
+                </td>
+                <td class="col-premarketVolume numeric">{{ compact(row.premarketVolume) }}</td>
                 <td class="col-marketCap numeric">{{ compact(row.marketCap) }}</td>
                 <td class="col-per numeric">{{ ratio(row.per) }}</td>
                 <td class="col-eps numeric" [class.down]="(row.eps ?? 0) < 0">
@@ -1016,8 +1047,13 @@ function optionIndex(id: string, label: unknown): number {
     }
 
     .col-changePercent,
-    .col-relVolume {
+    .col-relVolume,
+    .col-gapPercent {
       width: 6rem;
+    }
+
+    .col-premarketVolume {
+      width: 7rem;
     }
 
     .col-marketCap {
@@ -1679,6 +1715,17 @@ export class ScreenerPanelComponent implements OnDestroy {
    */
   protected applyPreset(preset: Preset): void {
     this.picks.set(picksOf(preset));
+    // A preset that names a column leaves the table on it, read the way that column is always
+    // read — the same rule a click on its header follows, so an order that arrived with the
+    // screen and one you asked for yourself behave identically from then on. One that names
+    // nothing leaves the order alone: it is a screen of companies and not a ranking.
+    if (preset.sort) {
+      const column = this.sortable.find((candidate) => candidate.field === preset.sort);
+      if (column) {
+        this.sort.set(column.field as SortField);
+        this.descending.set(column.numeric);
+      }
+    }
     this.go(0);
   }
 

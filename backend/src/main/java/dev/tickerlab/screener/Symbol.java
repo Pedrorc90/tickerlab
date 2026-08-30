@@ -92,6 +92,24 @@ public class Symbol {
     private BigDecimal analystRating;
 
     /**
+     * How far the premarket price sits from yesterday's close, in percent. Unlike every column
+     * above it this one is not always on offer: Yahoo publishes {@code preMarketChangePercent}
+     * only while the premarket session is open, which is why {@link #quote} leaves the field
+     * alone when it arrives empty instead of writing the null through.
+     */
+    @Column(name = "gap_percent", precision = 10, scale = 4)
+    private BigDecimal gapPercent;
+
+    /**
+     * Shares traded since 04:00 ET. It comes from Alpaca and not from Yahoo, which publishes no
+     * premarket volume anywhere — not in the quote and not in the chart, where those bars carry
+     * a literal zero. Written by a second pass over the few symbols the gap filter kept, so it
+     * is null for the rest of the universe on purpose.
+     */
+    @Column(name = "premarket_volume")
+    private Long premarketVolume;
+
+    /**
      * Relative strength against the rest of the universe, 1 to 99. The one metric here that
      * Yahoo does not supply: it is written by {@code SymbolRepository#rankRelativeStrength}
      * once a sweep has quoted everything, which is why {@link #quote} never touches it.
@@ -206,6 +224,22 @@ public class Symbol {
         return analystRating;
     }
 
+    public BigDecimal getGapPercent() {
+        return gapPercent;
+    }
+
+    public Long getPremarketVolume() {
+        return premarketVolume;
+    }
+
+    /**
+     * Set by the premarket pass alone: the quote sweep has no premarket volume to give, so it
+     * would only ever write the null it does not have.
+     */
+    public void premarketVolume(Long premarketVolume) {
+        this.premarketVolume = premarketVolume;
+    }
+
     public Integer getRsRating() {
         return rsRating;
     }
@@ -250,6 +284,13 @@ public class Symbol {
         this.forwardPer = fit(quote.forwardPer(), MAX_12_4);
         this.eps = fit(quote.eps(), MAX_12_4);
         this.analystRating = fit(quote.analystRating(), MAX_4_2);
+        // The one field an absent value does not clear. Yahoo drops the premarket block the
+        // moment the bell rings, so a null here does not mean "no gap", it means "not premarket
+        // any more" — and a list built at 09:20 has to still read at 09:35. The pair is wiped
+        // by the premarket sweep that owns it, once, before it fills it again.
+        if (quote.gapPercent() != null) {
+            this.gapPercent = fit(quote.gapPercent(), MAX_10_4);
+        }
         this.quotedAt = quotedAt;
     }
 

@@ -4,14 +4,18 @@ import dev.tickerlab.screener.dto.RefreshResult;
 import dev.tickerlab.screener.dto.ScreenerFilters;
 import dev.tickerlab.screener.dto.ScreenerPage;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,8 +25,15 @@ public class ScreenerController {
 
     private final ScreenerService service;
 
-    ScreenerController(ScreenerService service) {
+    /**
+     * What the morning task has to send to be let in. It is the only call in the app that is
+     * not behind the session cookie, because the caller is Task Scheduler and not a browser.
+     */
+    private final String premarketToken;
+
+    ScreenerController(ScreenerService service, @Value("${tickerlab.premarket.token}") String premarketToken) {
         this.service = service;
+        this.premarketToken = premarketToken;
     }
 
     @GetMapping("/symbols")
@@ -57,6 +68,9 @@ public class ScreenerController {
             @RequestParam(required = false) Integer minScore,
             @RequestParam(required = false) BigDecimal minRelVolume,
             @RequestParam(required = false) BigDecimal maxRelVolume,
+            @RequestParam(required = false) BigDecimal minGapPercent,
+            @RequestParam(required = false) BigDecimal maxGapPercent,
+            @RequestParam(required = false) Long minPremarketVolume,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false) String sort,
@@ -66,7 +80,8 @@ public class ScreenerController {
                 maxDividendYield, minChange52w,
                 minFromHigh52w, minVsSma50, maxVsSma50, minVsSma200, maxVsSma200, maxFromLow52w,
                 minAvgVolume3m, minSharesOutstanding, minForwardPer, maxForwardPer, minEps, maxAnalystRating,
-                minRsRating, minScore, minRelVolume, maxRelVolume);
+                minRsRating, minScore, minRelVolume, maxRelVolume,
+                minGapPercent, maxGapPercent, minPremarketVolume);
         return service.search(filters, page, size, sort, desc);
     }
 
@@ -77,6 +92,34 @@ public class ScreenerController {
     @PostMapping("/quotes/refresh")
     public Map<String, Boolean> refreshQuotes() {
         return Map.of("started", service.refreshQuotes());
+    }
+
+    /**
+     * The premarket run: wipes the pair, sweeps Yahoo for the gaps and asks Alpaca for the volume
+     * behind the ones that moved. Meant for a scheduled call around 09:20 New York time, so it
+     * answers immediately and lets the work happen in the background like every other sweep.
+     *
+     * <p>Authenticated by a token in a header rather than by the session, and an unset token
+     * <em>closes</em> the endpoint instead of opening it: the alternative is that a deploy with
+     * one variable missing leaves a public button that starts six thousand calls to Yahoo.
+     */
+    @PostMapping("/premarket")
+    public ResponseEntity<Map<String, Boolean>> premarket(
+            @RequestHeader(name = "X-Tickerlab-Token", required = false) String token) {
+        if (premarketToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        if (token == null || !matches(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(Map.of("started", service.refreshPremarket()));
+    }
+
+    /** Constant time: a token compared with equals leaks its length and then its prefix. */
+    private boolean matches(String token) {
+        return MessageDigest.isEqual(
+                token.getBytes(StandardCharsets.UTF_8),
+                premarketToken.getBytes(StandardCharsets.UTF_8));
     }
 
     @GetMapping("/exchanges")

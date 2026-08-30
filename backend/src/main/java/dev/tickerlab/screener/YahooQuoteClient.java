@@ -93,7 +93,10 @@ public class YahooQuoteClient {
                         row.sharesOutstanding(),
                         row.forwardPE(),
                         row.epsTrailingTwelveMonths(),
-                        rating(row.averageAnalystRating())));
+                        rating(row.averageAnalystRating()),
+                        // No asPercent: this one arrives as a percentage like the regularMarket
+                        // pair, not as the fraction the against-an-average fields use.
+                        row.preMarketChangePercent()));
             }
         }
         return quotes;
@@ -208,6 +211,7 @@ public class YahooQuoteClient {
                             BigDecimal fiftyTwoWeekHighChangePercent, BigDecimal fiftyTwoWeekLowChangePercent,
                             BigDecimal fiftyDayAverageChangePercent, BigDecimal twoHundredDayAverageChangePercent,
                             Long averageDailyVolume3Month, Long sharesOutstanding, BigDecimal forwardPE,
-                            BigDecimal epsTrailingTwelveMonths, String averageAnalystRating) {
+                            BigDecimal epsTrailingTwelveMonths, String averageAnalystRating,
+                            BigDecimal preMarketChangePercent) {
     }
 }

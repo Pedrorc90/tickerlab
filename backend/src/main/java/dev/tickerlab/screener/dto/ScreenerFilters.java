@@ -61,5 +61,18 @@ public record ScreenerFilters(String query,
                                * trading quietly — what a base looks like before it breaks out, and the
                                * opposite setup to the floor above rather than a variant of it.
                                */
-                              BigDecimal maxRelVolume) {
+                              BigDecimal maxRelVolume,
+                              /**
+                               * Floor on the premarket move. Comes in a pair like the other
+                               * change bounds because a gap down is a setup too: -5 as a ceiling
+                               * is what "abre hundida" looks like.
+                               */
+                              BigDecimal minGapPercent,
+                              BigDecimal maxGapPercent,
+                              /**
+                               * Shares traded before the bell. The bound that separates a gap
+                               * somebody is trading from one printed by two orders, and it is a
+                               * count and not a ratio: there is no premarket average to divide by.
+                               */
+                              Long minPremarketVolume) {
 }

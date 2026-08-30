@@ -38,6 +38,18 @@ export interface ScreenerSymbol {
    * 200-day trend at 20 %. Null while any of the three is missing.
    */
   readonly score: number | null;
+  /**
+   * The premarket move against yesterday's close. Only filled while the premarket session is
+   * open — Yahoo publishes the field for no other part of the day — and wiped by the next
+   * morning's run rather than by the bell, so a list built at 15:20 still reads at 15:35.
+   */
+  readonly gapPercent: number | null;
+  /**
+   * Shares traded since las 10:00 CET, and the one number in the row that does not come from
+   * Yahoo: it publishes no premarket volume anywhere, so this is Alpaca's. Only the symbols the
+   * gap filter kept get it, which is why it is null on almost every row.
+   */
+  readonly premarketVolume: number | null;
 }
 
 /** Every column the backend accepts an order by. */
@@ -159,6 +171,11 @@ export interface Filters {
   minRelVolume: number | null;
   /** The same ratio from above: 0.7 is a stock trading quietly, the way a base does. */
   maxRelVolume: number | null;
+  /** Floor on the premarket move, and a pair because a gap down is a setup too. */
+  minGapPercent: number | null;
+  maxGapPercent: number | null;
+  /** A count and not a ratio: there is no premarket average to divide it by. */
+  minPremarketVolume: number | null;
 }
 
 /** The numeric half of the filters: what a dropdown can set. */
@@ -412,6 +429,41 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
     ],
   },
   {
+    // The two premarket columns sit together and right after the volume that confirms a move,
+    // because they are the same pair asked before the open: how far it has jumped and whether
+    // anyone was there. Either one alone is the half that lies.
+    id: 'gap',
+    label: 'Hueco premarket',
+    group: 'Técnico',
+    minKey: 'minGapPercent',
+    maxKey: 'maxGapPercent',
+    options: [
+      // Nothing under 3 % has a volume beside it: that is the cut the morning run applies
+      // before spending a second call on the symbol, so a 2 % tier would look broken.
+      { label: 'Cualquiera' },
+      { label: 'Sube +3 %', min: 3 },
+      { label: 'Sube +5 %', min: 5 },
+      { label: 'Sube +10 %', min: 10 },
+      { label: 'Baja −3 %', max: -3 },
+      { label: 'Baja −5 %', max: -5 },
+      { label: 'Baja −10 %', max: -10 },
+    ],
+  },
+  {
+    id: 'premarketVolume',
+    label: 'Vol. premarket',
+    group: 'Técnico',
+    minKey: 'minPremarketVolume',
+    options: [
+      // Absolute and not a multiple of anything: the three-month average is a full session, so
+      // dividing five premarket hours by it would call every gap quiet.
+      { label: 'Todo' },
+      { label: '50 K+ antes de abrir', min: 50_000 },
+      { label: '200 K+ antes de abrir', min: 200_000 },
+      { label: '1 M+ antes de abrir', min: 1_000_000 },
+    ],
+  },
+  {
     id: 'change52w',
     label: '52 semanas',
     group: 'Técnico',
@@ -493,6 +545,17 @@ export interface Preset {
   readonly hint: string;
   /** Dropdown id to the label of the option it should sit on. */
   readonly picks: Readonly<Record<string, string>>;
+  /**
+   * The column it leaves the table on, when the order is part of the screen rather than a
+   * preference. Only the field: the direction is the one that column is always read in, the
+   * same rule a click on its header follows — a preset carrying its own would be a second
+   * answer to a question the table already answers.
+   *
+   * Most presets leave it out, and that is not an oversight: they hand back a set of
+   * companies and what you do with it is yours. It is here for the one screen where the
+   * order is the finding.
+   */
+  readonly sort?: SortField;
 }
 
 /**
@@ -544,7 +607,28 @@ export const PRESETS: readonly Preset[] = [
     },
   },
   {
-    // The fourth is somebody else's screen, kept as they wrote it: mid-cap and up, priced
+    // The only preset that reads columns the sweep does not always fill, so it is the only one
+    // that can come back empty on a working table: before the morning run there is no gap on
+    // any row. That is the honest answer and not a bug — see the hint.
+    name: 'Gappers',
+    hint: 'Lo que se mueve antes de abrir y con volumen real detrás. La ventaja está en la salida: vender a +6 % sobre la apertura, sin stop cerrado. Vacío hasta que corra el barrido premarket de la mañana.',
+    picks: {
+      gap: 'Sube +5 %',
+      premarketVolume: '200 K+ antes de abrir',
+      avgVolume3m: '200 K+ de media',
+    },
+    // The only preset that arrives sorted, because for this one the order is the finding and
+    // not a preference. Measured over the 547 gappers of August 2026 (F30): taking the three
+    // biggest gaps of the session returns +2,01 % a trade against +0,78 % taking the lot, and
+    // it is the only ranking of seven tried that held up in both halves of the month —
+    // premarket volume, volume against its average and price all did worse than taking them
+    // all. The mechanism is that the objective is a fixed distance and the wide gap is the one
+    // that moves far enough to cover it. What arrives at the top of this table is also the
+    // wildest thing in it: the worst of those three-a-day was −50,8 % in a single session.
+    sort: 'gapPercent',
+  },
+  {
+    // The fifth is somebody else's screen, kept as they wrote it: mid-cap and up, priced
     // where funds buy, paying nothing, liquid and still near its high. Two of their seven
     // bounds are missing here and are not faked — see the hint.
     name: 'Crecimiento US',
@@ -609,6 +693,9 @@ export function filtersFrom(
     minScore: null,
     minRelVolume: null,
     maxRelVolume: null,
+    minGapPercent: null,
+    maxGapPercent: null,
+    minPremarketVolume: null,
   };
   for (const select of RANGE_SELECTS) {
     const option = select.options[picks[select.id] ?? 0];

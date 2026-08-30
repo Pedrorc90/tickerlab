@@ -10,7 +10,8 @@ public record SymbolResponse(String symbol, String name, String exchange, BigDec
                              BigDecimal change52w, BigDecimal fromHigh52w, BigDecimal vsSma50,
                              BigDecimal vsSma200, BigDecimal fromLow52w, Long avgVolume3m,
                              Long sharesOutstanding, BigDecimal forwardPer, BigDecimal eps,
-                             BigDecimal analystRating, Integer rsRating, Integer score) {
+                             BigDecimal analystRating, Integer rsRating, Integer score,
+                             BigDecimal gapPercent, Long premarketVolume) {
 
     public static SymbolResponse from(Symbol symbol) {
         return new SymbolResponse(
@@ -35,6 +36,8 @@ public record SymbolResponse(String symbol, String name, String exchange, BigDec
                 symbol.getEps(),
                 symbol.getAnalystRating(),
                 symbol.getRsRating(),
-                symbol.getScore());
+                symbol.getScore(),
+                symbol.getGapPercent(),
+                symbol.getPremarketVolume());
     }
 }

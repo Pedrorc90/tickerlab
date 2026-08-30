@@ -39,6 +39,19 @@ tickerlab:
     seed-users: ${TICKERLAB_USERS:}
   yahoo:
     base-url: https://query1.finance.yahoo.com
+  alpaca:
+    # The premarket volume, which Yahoo publishes nowhere. Free "Basic" credentials off a paper
+    # account are enough: the plan serves the consolidated tape as long as the window asked for
+    # ends fifteen minutes ago, which a run at 09:20 does not care about.
+    base-url: https://data.alpaca.markets
+    # Empty here like every other secret. Without them the premarket run still writes the gaps
+    # and only skips the volume, so the app boots and works with no Alpaca account at all.
+    key-id: ${ALPACA_KEY_ID:}
+    secret-key: ${ALPACA_SECRET_KEY:}
+  premarket:
+    # What the scheduled task sends in X-Tickerlab-Token. Empty means the endpoint answers 503,
+    # never that it lets anyone in: this is the one route outside the session cookie.
+    token: ${TICKERLAB_PREMARKET_TOKEN:}
   nasdaq-trader:
     base-url: https://www.nasdaqtrader.com
 

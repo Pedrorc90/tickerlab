@@ -15,7 +15,9 @@ export type StrategyId =
   | 'SHA'
   | 'ICHIMOKU'
   | 'ICHIMOKU_TK'
-  | 'ADX';
+  | 'ICHIMOKU_TK_KUMO'
+  | 'ADX'
+  | 'GAP_UP';
 
 /**
  * Every number the screen exposes, flattened into one key space — the same shape the
@@ -39,12 +41,16 @@ export type StrategyParamKey =
   | 'shaExitBars'
   | 'shaBodyBuy'
   | 'shaBodySell'
+  | 'shaBodyExit'
   | 'ichimokuConversion'
   | 'ichimokuBase'
   | 'ichimokuSpan'
+  | 'ichimokuKumo'
+  | 'ichimokuPullback'
   | 'adxPeriod'
   | 'adxEntry'
   | 'adxExit'
+  | 'gapPercent'
   | 'takeProfit'
   | 'stopLoss'
   | 'volumeFilter'
@@ -72,6 +78,13 @@ export interface StrategyParam {
   min: number;
   max: number;
   unit: ParamUnit;
+  /**
+   * Starts a line of its own in the panel and carries down everything after it. Declared on
+   * the number instead of counted by the panel: where a strategy stops naming its periods and
+   * starts naming its filters is something only the strategy knows, and a rail this narrow
+   * runs out at about four boxes — past that the figure inside stops being readable.
+   */
+  newLine?: boolean;
 }
 
 /**
@@ -216,10 +229,32 @@ export const STRATEGIES: ReadonlyArray<Strategy> = [
         min: 0,
         max: 500,
         unit: 'percent',
+        newLine: true,
       },
       {
         key: 'shaBodySell',
         label: 'Cuerpo ↓ %',
+        defaultValue: 0,
+        min: 0,
+        max: 500,
+        unit: 'percent',
+      },
+      // The same measurement as «Cuerpo ↑ %» read from the other end: the figure a green body
+      // stops being one at. Entering asks for a body that dwarfs the wick under it; this asks
+      // what is left when it no longer does. A green dragging a wick three times its body is
+      // the run arguing with itself, and on smoothed candles that lands a bar or two before
+      // the first red does — which is the whole point of asking.
+      //
+      // Two levels over one reading, like the RSI and the ADX: 166 to enter and 33 to leave
+      // is one number with a band in the middle where the greens say nothing new and the
+      // position is left alone. It is not the red gate under another name — that one decides
+      // whether a red counts, and this one closes on a green.
+      //
+      // Zero is off, and here it has to be more than anywhere else: this is the only figure
+      // in the catalogue that can sell on a green bar.
+      {
+        key: 'shaBodyExit',
+        label: 'Agotamiento %',
         defaultValue: 0,
         min: 0,
         max: 500,
@@ -299,6 +334,74 @@ export const STRATEGIES: ReadonlyArray<Strategy> = [
     },
   },
   {
+    id: 'ICHIMOKU_TK_KUMO',
+    name: 'Cruce sobre la nube',
+    summary: 'El cruce de Tenkan y Kijun, pero solo el que se produce sobre una nube despejada.',
+    hold: 'el cruce al alza se dio sobre la nube y la conversión no ha vuelto bajo la base',
+    // The third reading of the same indicator, and the only one in the catalogue that is an
+    // entry rather than a state: what it asks about is the bar the lines crossed on. «Cruce
+    // Tenkan-Kijun» is in whenever the conversion is above the base — including the stretch
+    // it was already above on while the cloud sat overhead — and where the crossing itself
+    // landed is something only that one bar can answer. Hence a memory: once taken, the
+    // position is held on the same condition the plain cross holds on, and let go when the
+    // conversion closes back under the base.
+    //
+    // Three rules are the strategy and have no number: the cross upward, the close over the
+    // cloud, and the base line over it too. The last is «not inside the cloud» read the way
+    // the textbook reads it — a cross drawn between the spans is the classic no-signal, and
+    // the lines lag the price enough that they are often still in there on the bar the close
+    // finally clears the top.
+    //
+    // The other two arrived as preferences rather than rules, so they are numbers switched
+    // off at zero, like the volume gate: what a filter is worth should be read off the curve
+    // and not assumed by the catalogue.
+    params: [
+      {
+        key: 'ichimokuConversion',
+        label: 'Conversión',
+        defaultValue: 9,
+        min: 2,
+        max: 100,
+        unit: 'bars',
+      },
+      { key: 'ichimokuBase', label: 'Base', defaultValue: 26, min: 2, max: 200, unit: 'bars' },
+      { key: 'ichimokuSpan', label: 'Nube', defaultValue: 52, min: 2, max: 400, unit: 'bars' },
+      // How bullish the cloud has to be, as a share of the price — not «Span A over Span B»,
+      // which a cloud that has been flat for thirty bars satisfies by a rounding error. A
+      // distance means the same thing on a 3 EUR stock and on a 300 EUR one, and at 0 the
+      // question is not asked at all.
+      {
+        key: 'ichimokuKumo',
+        label: 'Kumo %',
+        defaultValue: 0,
+        min: 0,
+        max: 20,
+        unit: 'percent',
+        newLine: true,
+      },
+      // The dip the cross is meant to come out of: the deepest fall from a high inside the
+      // last «Base» bars. The window is the base period rather than a fourth number because
+      // that is the stretch the Kijun itself is measured over — the correction worth asking
+      // about is the one the line the price crossed already knows about.
+      {
+        key: 'ichimokuPullback',
+        label: 'Corrección %',
+        defaultValue: 0,
+        min: 0,
+        max: 50,
+        unit: 'percent',
+      },
+    ],
+    chart: {
+      indicators: ['ICHIMOKU'],
+      periods: ({ ichimokuConversion, ichimokuBase, ichimokuSpan }) => ({
+        ichimokuConversion,
+        ichimokuBase,
+        ichimokuSpan,
+      }),
+    },
+  },
+  {
     id: 'ADX',
     name: 'ADX',
     summary: 'Dentro solo mientras la tendencia tenga fuerza. Un filtro, no una señal.',
@@ -339,6 +442,40 @@ export const STRATEGIES: ReadonlyArray<Strategy> = [
     chart: {
       indicators: ['ADX'],
       periods: ({ adxPeriod }) => ({ adx: adxPeriod }),
+    },
+  },
+  {
+    id: 'GAP_UP',
+    name: 'Hueco al abrir',
+    summary:
+      'Compra la sesión que abre con hueco al alza y la suelta antes de cerrarla. Pide una temporalidad intradía y un `Objetivo %`: sin él es aguantar al cierre, que es justo lo que la medida dice que no funciona.',
+    hold: 'la sesión abrió con hueco al alza y todavía no ha llegado su última vela',
+    // The one strategy in the catalogue that is not a reading of the price but a reading of
+    // the clock: it opens on the first bar of a session and is flat before that session ends,
+    // never overnight. Measured over 547 gappers of August 2026, holding one to the close
+    // sums +97 points and −1.544 without its twenty best trades — four lottery tickets and
+    // 527 losers. The same entries with the objective at +6 % sum +382, and +262 with those
+    // twenty gone: the edge is not in picking the gap, it is in having a sell order resting
+    // above it. Hence the summary: ticked alone this is the losing half of the finding.
+    //
+    // A stop is deliberately not part of the rule, and the numbers are the argument: 81 % of
+    // those gappers traded 2 % under their open at some point in the day, winners included,
+    // so a tight stop is thrown out of nearly everything before it can work. `Stop %` is
+    // there like it is for every other strategy; what is not here is a default that hides it.
+    //
+    // Zero is any gap up at all rather than off: the size is the filter, the gap itself is
+    // the rule, and a rule that can be switched off is not one. A flat open is not a gap.
+    //
+    // The exit is the session and not the objective, so the two can be told apart on the
+    // panel: a trade closed by `signal` ran out of day, one closed by `target` got paid.
+    params: [
+      { key: 'gapPercent', label: 'Hueco %', defaultValue: 0, min: 0, max: 100, unit: 'percent' },
+    ],
+    // Nothing to draw: the rule is the open against yesterday's close, and both are already
+    // on the chart as candles. An indicator here would be decoration.
+    chart: {
+      indicators: [],
+      periods: () => ({}),
     },
   },
 ];
@@ -422,9 +559,13 @@ export const TRADE_COST: StrategyParam = {
 
 /** Every param by key, so a stored number can be checked against its own bounds. */
 export const STRATEGY_PARAMS: ReadonlyMap<string, StrategyParam> = new Map(
-  [...STRATEGIES.flatMap(({ params }) => params), TAKE_PROFIT, STOP_LOSS, VOLUME_FILTER, TRADE_COST].map(
-    (param) => [param.key as string, param],
-  ),
+  [
+    ...STRATEGIES.flatMap(({ params }) => params),
+    TAKE_PROFIT,
+    STOP_LOSS,
+    VOLUME_FILTER,
+    TRADE_COST,
+  ].map((param) => [param.key as string, param]),
 );
 
 /** The numbers every strategy starts on. Derived so they live in one place. */
@@ -438,6 +579,28 @@ export function paramSuffix(strategy: Strategy, params: StrategyParams): string 
     .filter(({ unit }) => unit === 'bars')
     .map((param) => params[param.key])
     .join('/');
+}
+
+/**
+ * The numbers of a strategy grouped into the lines the panel draws them on. Declared order is
+ * kept and a line runs until the next one asks to start: the split is a reading of what the
+ * numbers are — how the indicator is built, then what is laid over it — and not a count of how
+ * many fit, which is why it is written next to them rather than measured here.
+ *
+ * A strategy that asks for nothing comes back as one line, so the panel has a single shape to
+ * draw and no special case for the eight of them that never needed the break.
+ */
+export function paramLines(strategy: Strategy): ReadonlyArray<ReadonlyArray<StrategyParam>> {
+  const lines: StrategyParam[][] = [];
+
+  for (const param of strategy.params) {
+    if (!lines.length || param.newLine) {
+      lines.push([]);
+    }
+    lines[lines.length - 1].push(param);
+  }
+
+  return lines;
 }
 
 /**

@@ -28,5 +28,11 @@ public record Quote(String symbol,
                     BigDecimal forwardPer,
                     BigDecimal eps,
                     /** Analyst consensus: 1 is a strong buy and 5 a sell, so lower is better. */
-                    BigDecimal analystRating) {
+                    BigDecimal analystRating,
+                    /**
+                     * The premarket move against yesterday's close. Null outside the premarket
+                     * session, which is most of the day: Yahoo sends the field only while the
+                     * session it describes is open.
+                     */
+                    BigDecimal gapPercent) {
 }
