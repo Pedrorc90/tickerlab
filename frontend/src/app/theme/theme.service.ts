@@ -36,6 +36,8 @@ export interface ChartPalette {
   smaSlow: string;
   emaFast: string;
   emaSlow: string;
+  /** Grey by choice: the four averages own the hues, and this line is a rule laid over them. */
+  maExit: string;
   bollingerBand: string;
   bollingerBasis: string;
   /**
@@ -111,6 +113,7 @@ export const THEMES: readonly Theme[] = [
       smaSlow: '#a78bfa',
       emaFast: '#38bdf8',
       emaSlow: '#fb7185',
+      maExit: '#94a3b8',
       bollingerBand: '#6f86c9',
       bollingerBasis: 'rgba(111, 134, 201, 0.55)',
       // The candles' own hues, lifted: this is the same price, not one more indicator.
@@ -171,6 +174,7 @@ export const THEMES: readonly Theme[] = [
       smaSlow: '#6b4fa8',
       emaFast: '#1d7fa8',
       emaSlow: '#c04a5e',
+      maExit: '#6b7280',
       bollingerBand: '#4a6fa5',
       bollingerBasis: 'rgba(74, 111, 165, 0.5)',
       // Darkened instead of lifted: on paper the light end of the hue disappears.

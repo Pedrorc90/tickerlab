@@ -26,8 +26,10 @@ export type StrategyId =
 export type StrategyParamKey =
   | 'emaFast'
   | 'emaSlow'
+  | 'emaExit'
   | 'smaFast'
   | 'smaSlow'
+  | 'smaExit'
   | 'macdFast'
   | 'macdSlow'
   | 'macdSignal'
@@ -35,6 +37,7 @@ export type StrategyParamKey =
   | 'rsiBuy'
   | 'rsiSell'
   | 'trendMa'
+  | 'trendMaType'
   | 'shaPrice'
   | 'shaCandle'
   | 'shaEntryBars'
@@ -67,8 +70,33 @@ export type StrategyParams = Readonly<Record<StrategyParamKey, number>>;
  * A streak is bars too, but bars of confirmation rather than bars of window: it is a second
  * rule laid over the indicator and not part of how the indicator is built, so it stays off
  * the pill for the same reason a level does — `10/10/3/1` would claim four periods.
+ *
+ * A window is the length of an average that is not one of the ones the strategy is named
+ * after: real bars of a real indicator, but belonging to a rule laid on top. Off the pill
+ * for the same reason — `10/40/20` reads as a cross of three lines, and switched off it
+ * would read as a cross with a zero in it.
  */
-export type ParamUnit = 'bars' | 'level' | 'streak' | 'percent' | 'bps';
+export type ParamUnit = 'bars' | 'level' | 'streak' | 'percent' | 'bps' | 'choice' | 'window';
+
+/**
+ * The one param that is not a quantity: a choice between named alternatives, stored as the
+ * index of the one picked so it travels through the same number-shaped key space and the same
+ * «only what was moved» storage as everything else. Two of them are a pair of buttons; the
+ * bounds are the ends of the list, so a value saved before an option was removed clamps back
+ * onto a real one.
+ */
+export type ParamChoices = ReadonlyArray<string>;
+
+/**
+ * The line a param draws, named after the chart's own colour rather than the slot: the panel
+ * paints a dot with it next to the label, so «Lenta» is read against the line it moves instead
+ * of against the other number beside it. Only the averages have one — every param here is a
+ * line over the candles, which is what makes the dot mean something.
+ *
+ * A function where the answer is itself a param: «Precio sobre media» draws a simple average
+ * or an exponential one depending on what was picked, and the dot has to change with it.
+ */
+export type SwatchKey = 'smaFast' | 'smaSlow' | 'emaFast' | 'emaSlow' | 'maExit';
 
 /** One editable number of a strategy. `min`/`max` keep the backtest from going empty. */
 export interface StrategyParam {
@@ -78,6 +106,10 @@ export interface StrategyParam {
   min: number;
   max: number;
   unit: ParamUnit;
+  /** Only for `choice`: the alternatives, in order. The stored number is an index into it. */
+  choices?: ParamChoices;
+  /** The colour of the line this number moves, when it moves one. */
+  swatch?: SwatchKey | ((params: StrategyParams) => SwatchKey);
   /**
    * Starts a line of its own in the panel and carries down everything after it. Declared on
    * the number instead of counted by the panel: where a strategy stops naming its periods and
@@ -93,7 +125,13 @@ export interface StrategyParam {
  * thing a strategy declares, instead of something the panel has to know per id.
  */
 export interface StrategyChart {
-  indicators: ReadonlyArray<Indicator>;
+  /**
+   * A function where the choice of slot is itself a param — one strategy drawing an EMA or an
+   * SMA is drawing two different lines, and which one is a question only the numbers answer.
+   * A plain array everywhere else: nine of the ten always draw the same thing, and wrapping
+   * them in a function would be nine closures returning a constant.
+   */
+  indicators: ReadonlyArray<Indicator> | ((params: StrategyParams) => ReadonlyArray<Indicator>);
   periods(params: StrategyParams): Partial<IndicatorPeriods>;
 }
 
@@ -131,13 +169,53 @@ export const STRATEGIES: ReadonlyArray<Strategy> = [
     name: 'Cruce de EMAs',
     summary: 'La media rápida cruza la lenta: dentro al alza, fuera a la baja.',
     hold: 'la EMA rápida cierra por encima de la lenta',
+    // The cross says when to buy and, left alone, also when to sell — and it sells late by
+    // construction: the two lines have to trade places, which is bars after the price stopped
+    // going the way it was. «Salida» is the line that closes it early: the position is let go
+    // on the first close under an average of its own, without waiting for the lines to meet.
+    //
+    // A period of its own rather than one of the two already there: the point is a line the
+    // price rides and the slow one is nowhere near it, so closing on that is closing on the
+    // cross itself. Zero is off, like every other rule laid over a strategy.
+    //
+    // Once it fires, a new cross is what opens the position again — the fast line has to fall
+    // under the slow one and climb back over it. Reading «still crossed» would reopen on the
+    // next bar and make the whole field a way of skipping the odd red candle.
     params: [
-      { key: 'emaFast', label: 'Rápida', defaultValue: 10, min: 2, max: 200, unit: 'bars' },
-      { key: 'emaSlow', label: 'Lenta', defaultValue: 40, min: 3, max: 400, unit: 'bars' },
+      {
+        key: 'emaFast',
+        label: 'Rápida',
+        defaultValue: 10,
+        min: 2,
+        max: 200,
+        unit: 'bars',
+        swatch: 'emaFast',
+      },
+      {
+        key: 'emaSlow',
+        label: 'Lenta',
+        defaultValue: 40,
+        min: 3,
+        max: 400,
+        unit: 'bars',
+        swatch: 'emaSlow',
+      },
+      {
+        key: 'emaExit',
+        label: 'Salida',
+        defaultValue: 0,
+        min: 0,
+        max: 400,
+        unit: 'window',
+        swatch: 'maExit',
+      },
     ],
+    // The exit line joins the chart only once it is switched on: at zero there is no rule to
+    // draw, and a slot lit with a period of nothing would be a flat line at the bottom.
     chart: {
-      indicators: ['EMA20', 'EMA50'],
-      periods: ({ emaFast, emaSlow }) => ({ emaFast, emaSlow }),
+      indicators: ({ emaExit }) => (emaExit ? ['EMA20', 'EMA50', 'EMA_EXIT'] : ['EMA20', 'EMA50']),
+      periods: ({ emaFast, emaSlow, emaExit }) =>
+        emaExit ? { emaFast, emaSlow, emaExit } : { emaFast, emaSlow },
     },
   },
   {
@@ -145,13 +223,43 @@ export const STRATEGIES: ReadonlyArray<Strategy> = [
     name: 'Cruce de SMAs',
     summary: 'El cruce de siempre, 50 y 200 sobre medias simples.',
     hold: 'la SMA rápida cierra por encima de la lenta',
+    // The same exit as the EMA cross, over simple averages and with a period of its own: 20
+    // bars under a 50/200 is a different line from 20 under a 10/40, and one key shared by
+    // both would move the two strategies at once.
     params: [
-      { key: 'smaFast', label: 'Rápida', defaultValue: 50, min: 2, max: 200, unit: 'bars' },
-      { key: 'smaSlow', label: 'Lenta', defaultValue: 200, min: 3, max: 400, unit: 'bars' },
+      {
+        key: 'smaFast',
+        label: 'Rápida',
+        defaultValue: 50,
+        min: 2,
+        max: 200,
+        unit: 'bars',
+        swatch: 'smaFast',
+      },
+      {
+        key: 'smaSlow',
+        label: 'Lenta',
+        defaultValue: 200,
+        min: 3,
+        max: 400,
+        unit: 'bars',
+        swatch: 'smaSlow',
+      },
+      {
+        key: 'smaExit',
+        label: 'Salida',
+        defaultValue: 0,
+        min: 0,
+        max: 400,
+        unit: 'window',
+        swatch: 'maExit',
+      },
     ],
     chart: {
-      indicators: ['SMA50', 'SMA200'],
-      periods: ({ smaFast, smaSlow }) => ({ smaFast, smaSlow }),
+      indicators: ({ smaExit }) =>
+        smaExit ? ['SMA50', 'SMA200', 'SMA_EXIT'] : ['SMA50', 'SMA200'],
+      periods: ({ smaFast, smaSlow, smaExit }) =>
+        smaExit ? { smaFast, smaSlow, smaExit } : { smaFast, smaSlow },
     },
   },
   {
@@ -189,10 +297,38 @@ export const STRATEGIES: ReadonlyArray<Strategy> = [
     name: 'Precio sobre media',
     summary: 'Dentro mientras el cierre aguante sobre su media. El filtro de tendencia de siempre.',
     hold: 'el cierre está por encima de la media',
-    params: [{ key: 'trendMa', label: 'Media', defaultValue: 200, min: 2, max: 400, unit: 'bars' }],
+    // Which average is asked, not only how long: the same 200 bars weighted exponentially is a
+    // line that sits somewhere else entirely, and «is the price over its average» is the same
+    // question of both. Exponential by default — it is the one that turns with the price, and
+    // the filter is there to say when the trend gave up rather than to be gentle about it.
+    params: [
+      {
+        key: 'trendMa',
+        label: 'Media',
+        defaultValue: 200,
+        min: 2,
+        max: 400,
+        unit: 'bars',
+        swatch: ({ trendMaType }) => (trendMaType ? 'emaSlow' : 'smaSlow'),
+      },
+      {
+        key: 'trendMaType',
+        label: 'Tipo',
+        defaultValue: 1,
+        min: 0,
+        max: 1,
+        unit: 'choice',
+        choices: ['SMA', 'EMA'],
+      },
+    ],
+    // The slot follows the choice, so the line drawn is the line the rule read. Sharing the
+    // cross strategies' slots rather than owning a pair of its own is what lets the eye check
+    // it against them — and if one of those is ticked too it keeps its own periods, which is
+    // the same first-one-wins `chartSetup` has always applied.
     chart: {
-      indicators: ['SMA200'],
-      periods: ({ trendMa }) => ({ smaSlow: trendMa }),
+      indicators: ({ trendMaType }) => (trendMaType ? ['EMA50'] : ['SMA200']),
+      periods: ({ trendMa, trendMaType }) =>
+        trendMaType ? { emaSlow: trendMa } : { smaSlow: trendMa },
     },
   },
   {
@@ -573,6 +709,18 @@ export const DEFAULT_STRATEGY_PARAMS: StrategyParams = Object.fromEntries(
   [...STRATEGY_PARAMS.values()].map((param) => [param.key, param.defaultValue]),
 ) as StrategyParams;
 
+/**
+ * The colour of the line a param moves, or null when it moves none. Resolved here rather than
+ * in the panel so the two shapes a swatch can take stay the catalogue's business.
+ */
+export function swatchOf(param: StrategyParam, params: StrategyParams): SwatchKey | null {
+  const swatch = param.swatch;
+  if (!swatch) {
+    return null;
+  }
+  return typeof swatch === 'function' ? swatch(params) : swatch;
+}
+
 /** `10/40` — what the pill wears next to the name. Periods only; a level is not one. */
 export function paramSuffix(strategy: Strategy, params: StrategyParams): string {
   return strategy.params
@@ -618,7 +766,8 @@ export function chartSetup(
   const periods: Record<string, number> = {};
 
   for (const strategy of ticked) {
-    for (const indicator of strategy.chart.indicators) {
+    const slots = strategy.chart.indicators;
+    for (const indicator of typeof slots === 'function' ? slots(params) : slots) {
       indicators.add(indicator);
     }
     for (const [key, value] of Object.entries(strategy.chart.periods(params))) {

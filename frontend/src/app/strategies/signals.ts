@@ -41,19 +41,26 @@ export function stanceOf(strategy: Strategy, candles: Candle[], params: Strategy
         candles,
         exponentialMovingAverage(candles, params.emaFast),
         exponentialMovingAverage(candles, params.emaSlow),
+        params.emaExit ? exponentialMovingAverage(candles, params.emaExit) : null,
       );
     case 'SMA_CROSS':
       return above(
         candles,
         simpleMovingAverage(candles, params.smaFast),
         simpleMovingAverage(candles, params.smaSlow),
+        params.smaExit ? simpleMovingAverage(candles, params.smaExit) : null,
       );
     case 'MACD':
       return macdStance(candles, params);
     case 'RSI':
       return rsiStance(candles, params);
     case 'PRICE_OVER_MA':
-      return overPrice(candles, simpleMovingAverage(candles, params.trendMa));
+      return overPrice(
+        candles,
+        params.trendMaType
+          ? exponentialMovingAverage(candles, params.trendMa)
+          : simpleMovingAverage(candles, params.trendMa),
+      );
     case 'SHA':
       return shaStance(candles, params);
     case 'ICHIMOKU':
@@ -91,14 +98,65 @@ export function combine(stances: ReadonlyArray<Stance>, mode: CombineMode, bars:
   return { from, held };
 }
 
-/** One line over another, bar by bar: every cross strategy is this and a pair of periods. */
-function above(candles: Candle[], fast: IndicatorPoint[], slow: IndicatorPoint[]): Stance {
+/**
+ * One line over another, bar by bar: every cross strategy is this and a pair of periods.
+ *
+ * With an `exit` line it stops being a state and grows a memory. The cross still opens the
+ * position, but it is let go on the first close under that third average — the crossing pair
+ * sells late by construction, since the two lines have to trade places, and this closes on the
+ * bar the price gave up instead. The close and not the low: the engine fills at closes
+ * everywhere, and selling at a level touched intrabar would book a price this never proves was
+ * there. Both readings are checked before the entry, as everywhere else — being out is the
+ * state that needs no explaining.
+ *
+ * Reopening needs a new cross rather than the lines still being crossed: after an early exit
+ * the fast line is usually still over the slow one, so reading the state would put the position
+ * back on the next bar and leave the field skipping the odd red candle. `previous` starts null
+ * so the first bar that can answer takes the position if the cross is already on — the rule the
+ * whole catalogue follows, and what keeps «with exit» comparable to «without» rather than a
+ * test that sat out the first trend.
+ *
+ * Nothing is said until the exit line exists too. It can be the longest of the three, and a
+ * stance that answered before it could be read would trade bars the rule was blind to.
+ */
+function above(
+  candles: Candle[],
+  fast: IndicatorPoint[],
+  slow: IndicatorPoint[],
+  exit: IndicatorPoint[] | null = null,
+): Stance {
   const fastByTime = byTime(fast);
   const slowByTime = byTime(slow);
+  const exitByTime = exit && byTime(exit);
+  let holding = false;
+  let previous: boolean | null = null;
+
   return stanceFrom(candles, (candle) => {
     const fastValue = fastByTime.get(candle.time);
     const slowValue = slowByTime.get(candle.time);
-    return fastValue === undefined || slowValue === undefined ? null : fastValue > slowValue;
+    if (fastValue === undefined || slowValue === undefined) {
+      return null;
+    }
+
+    const over = fastValue > slowValue;
+    if (!exitByTime) {
+      return over;
+    }
+
+    const line = exitByTime.get(candle.time);
+    if (line === undefined) {
+      return null;
+    }
+
+    const crossed = over && previous !== true;
+    previous = over;
+
+    if (holding && (!over || candle.close < line)) {
+      holding = false;
+    } else if (!holding && crossed && candle.close >= line) {
+      holding = true;
+    }
+    return holding;
   });
 }
 

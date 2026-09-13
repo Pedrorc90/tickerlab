@@ -36,6 +36,8 @@ export type Indicator =
   | 'SMA200'
   | 'EMA20'
   | 'EMA50'
+  | 'EMA_EXIT'
+  | 'SMA_EXIT'
   | 'BOLLINGER'
   | 'SHA'
   | 'ICHIMOKU'
@@ -55,6 +57,8 @@ export type PeriodKey =
   | 'smaSlow'
   | 'emaFast'
   | 'emaSlow'
+  | 'emaExit'
+  | 'smaExit'
   | 'bollinger'
   | 'bollingerDeviations'
   | 'shaPrice'
@@ -90,6 +94,12 @@ export const INDICATORS: ReadonlyArray<{
   hint: string;
   /** Drawn on top of the candles instead of getting a pane of its own. */
   overlay: boolean;
+  /**
+   * A slot only a strategy ever switches on: it is here so the chart knows how to draw it and
+   * what period it carries, not so it can be picked from the legend. Ticking «media de salida»
+   * by hand on the market screen would be choosing a rule without the strategy it belongs to.
+   */
+  strategyOnly?: boolean;
   /** Editable periods, in the order the popover shows them. Empty means nothing to tune. */
   params: ReadonlyArray<PeriodParam>;
 }> = [
@@ -124,6 +134,27 @@ export const INDICATORS: ReadonlyArray<{
     hint: 'La misma media, más lenta: soporte en tendencia.',
     overlay: true,
     params: [{ key: 'emaSlow', label: 'Periodo', defaultValue: 50, min: 2, max: 400 }],
+  },
+  // The line that closes a cross early, one per kind of average: the exit of an EMA cross is
+  // an EMA and that of an SMA cross an SMA, and a single shared slot would have to be told
+  // which. Their periods are the strategies' own keys, so what is drawn is what was tested.
+  {
+    value: 'EMA_EXIT',
+    swatch: 'maExit',
+    label: 'Salida',
+    hint: 'La media que cierra el cruce sin esperar a que se deshaga.',
+    overlay: true,
+    strategyOnly: true,
+    params: [{ key: 'emaExit', label: 'Periodo', defaultValue: 20, min: 2, max: 400 }],
+  },
+  {
+    value: 'SMA_EXIT',
+    swatch: 'maExit',
+    label: 'Salida',
+    hint: 'La misma salida, sobre media simple.',
+    overlay: true,
+    strategyOnly: true,
+    params: [{ key: 'smaExit', label: 'Periodo', defaultValue: 20, min: 2, max: 400 }],
   },
   {
     value: 'BOLLINGER',

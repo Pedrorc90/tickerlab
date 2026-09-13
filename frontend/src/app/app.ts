@@ -95,12 +95,20 @@ function storedRow(): ScreenerSymbol | null {
 const HIDDEN_INDICATORS_KEY = 'tickerlab.hiddenIndicators';
 
 /**
+ * Everything the legend offers. The strategy-only slots are left out of both halves of the
+ * rule below: they are never shown, so they can neither be switched off nor be remembered as
+ * hidden — and counted as visible they would draw an exit line over a chart nobody asked one
+ * of.
+ */
+const PICKABLE_INDICATORS = INDICATORS.filter(({ strategyOnly }) => !strategyOnly);
+
+/**
  * What is stored is the switched-off ones, not the visible ones: that way an indicator
  * added in a later version shows up on its own instead of being absent from every list
  * saved before it existed. Unparseable storage falls back to showing everything.
  */
 function storedIndicators(): ReadonlySet<Indicator> {
-  const known = INDICATORS.map(({ value }) => value);
+  const known = PICKABLE_INDICATORS.map(({ value }) => value);
   try {
     const hidden: unknown = JSON.parse(localStorage.getItem(HIDDEN_INDICATORS_KEY) ?? '[]');
     return new Set(known.filter((value) => !(hidden as Indicator[]).includes(value)));
@@ -288,7 +296,9 @@ export class App {
     });
     effect(() => {
       const visible = this.visibleIndicators();
-      const hidden = INDICATORS.map(({ value }) => value).filter((value) => !visible.has(value));
+      const hidden = PICKABLE_INDICATORS.map(({ value }) => value).filter(
+        (value) => !visible.has(value),
+      );
       localStorage.setItem(HIDDEN_INDICATORS_KEY, JSON.stringify(hidden));
     });
     effect(() => {

@@ -16,6 +16,7 @@ import {
   IndicatorPeriods,
 } from '../market/market.models';
 import { MarketService } from '../market/market.service';
+import { ThemeService } from '../theme/theme.service';
 import { PriceChartComponent } from '../market/price-chart.component';
 import { formatPercent, formatPrice } from '../screener/screener.models';
 import { Watchlist } from '../watchlist/watchlist.models';
@@ -39,6 +40,7 @@ import {
   chartSetup,
   paramLines,
   paramSuffix,
+  swatchOf,
 } from './strategy.models';
 
 /** Which strategies were last ticked. UI state, so it stays in the browser. */
@@ -156,17 +158,47 @@ function storedParams(): StrategyParams {
               @for (line of lines(option); track $index) {
                 <div class="param-line">
                   @for (param of line; track param.key) {
-                    <label class="param">
-                      <span class="param-name">{{ param.label }}</span>
-                      <input
-                        #box
-                        type="number"
-                        [min]="param.min"
-                        [max]="param.max"
-                        [value]="params()[param.key]"
-                        (change)="box.value = setParam(param, box.value)"
-                      />
-                    </label>
+                    <!-- Two named alternatives are a pair of buttons and not a box with a 0 or
+                         a 1 in it: the number is an index and nobody thinks in indexes. It
+                         keeps the box's frame so the line still reads as one row of settings. -->
+                    @if (param.choices; as choices) {
+                      <div class="param">
+                        <span class="param-name">{{ param.label }}</span>
+                        <div class="choice" role="group" [attr.aria-label]="param.label">
+                          @for (choice of choices; track choice; let i = $index) {
+                            <button
+                              type="button"
+                              class="choice-option"
+                              [class.active]="params()[param.key] === i"
+                              [attr.aria-pressed]="params()[param.key] === i"
+                              (click)="setParam(param, i + '')"
+                            >
+                              {{ choice }}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    } @else {
+                      <label class="param">
+                        <!-- The dot says which line on the chart this number moves. Two
+                             averages a few bars apart are two labels that read the same;
+                             the colour is what tells them apart at a glance. -->
+                        <span class="param-name">
+                          @if (swatchColor(param); as colour) {
+                            <i class="param-swatch" [style.background]="colour"></i>
+                          }
+                          {{ param.label }}
+                        </span>
+                        <input
+                          #box
+                          type="number"
+                          [min]="param.min"
+                          [max]="param.max"
+                          [value]="params()[param.key]"
+                          (change)="box.value = setParam(param, box.value)"
+                        />
+                      </label>
+                    }
                   }
                 </div>
               }
@@ -755,6 +787,17 @@ function storedParams(): StrategyParams {
       text-overflow: ellipsis;
     }
 
+    /* Inline with the name instead of over the box: the rail is narrow and the dot has to
+       cost the label a few pixels, not a line of its own. */
+    .param-swatch {
+      display: inline-block;
+      width: 0.4rem;
+      height: 0.4rem;
+      margin-right: 0.15rem;
+      border-radius: 50%;
+      vertical-align: middle;
+    }
+
     .param input {
       width: 100%;
       min-width: 0;
@@ -779,6 +822,40 @@ function storedParams(): StrategyParams {
     .param input:focus {
       border-color: var(--border-focus);
       outline: none;
+    }
+
+    /* The frame of the box it stands in for, split in two. Same height and same border, so a
+       line mixing a number and a choice still reads as one row rather than two controls that
+       happen to be next to each other. */
+    .choice {
+      display: flex;
+      gap: 0.1rem;
+      padding: 0.1rem;
+      border: 1px solid var(--border-control);
+      border-radius: 4px;
+      background: var(--bg-app);
+    }
+
+    .choice-option {
+      flex: 1;
+      min-width: 0;
+      padding: 0.1rem 0.2rem;
+      border: 0;
+      border-radius: 3px;
+      background: transparent;
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+
+    .choice-option:hover {
+      color: var(--text);
+    }
+
+    .choice-option.active {
+      background: var(--accent);
+      color: var(--on-accent);
     }
 
     /* Pushed to the foot of the rail while there is room for it: it describes everything
@@ -1070,6 +1147,10 @@ function storedParams(): StrategyParams {
         width: 3.4rem;
       }
 
+      .choice-option {
+        min-width: 2.2rem;
+      }
+
       .basket-list {
         max-width: 10rem;
       }
@@ -1157,6 +1238,7 @@ export class StrategiesPanelComponent {
   /** Off by default: the pane it opens costs the price a fifth of its height. */
   protected readonly showVolume = signal(localStorage.getItem(VOLUME_KEY) === 'on');
 
+  private readonly theme = inject(ThemeService);
   private readonly market = inject(MarketService);
   private readonly watchlists = inject(WatchlistService);
 
@@ -1404,6 +1486,15 @@ export class StrategiesPanelComponent {
       levels.push(`al perder ${stopLoss} %`);
     }
     return levels.length ? `${base}, o ${levels.join(', o ')}` : base;
+  }
+
+  /**
+   * The colour of the line a number moves, straight off the chart's palette so the dot and the
+   * line can never drift apart — including the one that changes with the average picked.
+   */
+  protected swatchColor(param: StrategyParam): string | null {
+    const key = swatchOf(param, this.params());
+    return key === null ? null : this.theme.chart()[key];
   }
 
   protected suffix(strategy: Strategy): string {

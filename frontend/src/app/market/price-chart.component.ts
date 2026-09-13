@@ -74,6 +74,8 @@ const PANE_WEIGHTS: Record<'price' | Indicator, number> = {
   SMA200: 0,
   EMA20: 0,
   EMA50: 0,
+  EMA_EXIT: 0,
+  SMA_EXIT: 0,
   BOLLINGER: 0,
   SHA: 0,
   ICHIMOKU: 0,
@@ -506,6 +508,40 @@ export class PriceChartComponent implements AfterViewInit, OnDestroy {
           setData: (candles) =>
             series.setData(
               exponentialMovingAverage(candles, period).map((point) => ({
+                time: point.time as UTCTimestamp,
+                value: point.value,
+              })),
+            ),
+        };
+      }
+
+      // Dashed, hairline and in a colour of nobody else's: it is not a third average of the
+      // cross but the rule that closes it, and drawn like its neighbours it would be read as
+      // one more line of the pair. Which average it is follows the slot — an EMA cross exits
+      // on an EMA — so the two share everything but the arithmetic.
+      case 'EMA_EXIT':
+      case 'SMA_EXIT': {
+        const exponential = indicator === 'EMA_EXIT';
+        const period = exponential ? periods.emaExit : periods.smaExit;
+        const average = exponential ? exponentialMovingAverage : simpleMovingAverage;
+        const series = chart.addSeries(
+          LineSeries,
+          {
+            color: COLORS.maExit,
+            lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          },
+          PRICE_PANE,
+        );
+        return {
+          series: [series],
+          signature,
+          setData: (candles) =>
+            series.setData(
+              average(candles, period).map((point) => ({
                 time: point.time as UTCTimestamp,
                 value: point.value,
               })),

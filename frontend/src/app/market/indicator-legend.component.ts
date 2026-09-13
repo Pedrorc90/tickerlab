@@ -426,7 +426,8 @@ export interface PeriodChange {
   `,
 })
 export class IndicatorLegendComponent {
-  protected readonly indicators = INDICATORS;
+  /** The strategy-only slots are drawn by the backtest screen and picked by nobody. */
+  protected readonly indicators = INDICATORS.filter(({ strategyOnly }) => !strategyOnly);
 
   readonly visible = input.required<ReadonlySet<Indicator>>();
   readonly periods = input.required<IndicatorPeriods>();
