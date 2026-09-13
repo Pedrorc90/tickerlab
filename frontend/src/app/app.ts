@@ -27,6 +27,8 @@ import { orderMarkers } from './portfolio/order-markers';
 import { Order } from './portfolio/portfolio.models';
 import { PortfolioPanelComponent } from './portfolio/portfolio-panel.component';
 import { PortfolioService } from './portfolio/portfolio.service';
+import { BrokerPanelComponent } from './portfolio/broker-panel.component';
+import { BrokerService } from './portfolio/broker.service';
 import { StrategiesPanelComponent } from './strategies/strategies-panel.component';
 import {
   ScreenerSymbol,
@@ -158,6 +160,7 @@ function storedPeriods(): IndicatorPeriods {
     ScreenerPanelComponent,
     StrategiesPanelComponent,
     PortfolioPanelComponent,
+    BrokerPanelComponent,
     WatchlistPanelComponent,
     UserMenuComponent,
     DecimalPipe,
@@ -169,6 +172,13 @@ export class App {
   /** Read by the template: nothing is painted until this says who is signed in. */
   protected readonly auth = inject(AuthService);
   private readonly portfolios = inject(PortfolioService);
+
+  /**
+   * Read by the template for the Papel/Real switch. Public because which half of Cartera is
+   * open is remembered across sessions, and that memory lives in the service — a copy here
+   * would be the second reader of the same fact that the watchlists already got wrong.
+   */
+  protected readonly brokers = inject(BrokerService);
 
   /** Drives the decisions CSS cannot take on its own; the widths themselves live in the CSS. */
   protected readonly viewport = inject(ViewportService);

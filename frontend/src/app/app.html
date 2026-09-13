@@ -282,13 +282,42 @@
   </app-strategies-panel>
 } @else if (view() === 'portfolio') {
   <!-- No chart here and no watchlist docked: the screen answers "what do I own and what is it
-       worth", and the quotebar above already says which ticker the order form will buy. -->
-  <app-portfolio-panel
-    [currentSymbol]="symbol()"
-    [currentName]="series()?.name ?? null"
-    [currentPrice]="quote()?.close ?? null"
-    (selected)="onSymbolSelected($event)"
-  />
+       worth", and the quotebar above already says which ticker the order form will buy.
+
+       Two halves, and the split is not cosmetic: money that is not real refuses an order it
+       cannot pay for, money that is real only ever records what a statement already said. One
+       panel doing both would have to hide half its controls in each mode. -->
+  <nav class="subtabs" aria-label="Tipo de cartera">
+    <button
+      type="button"
+      class="subtab"
+      [class.active]="brokers.tab() === 'paper'"
+      [attr.aria-pressed]="brokers.tab() === 'paper'"
+      (click)="brokers.setTab('paper')"
+    >
+      Papel
+    </button>
+    <button
+      type="button"
+      class="subtab"
+      [class.active]="brokers.tab() === 'real'"
+      [attr.aria-pressed]="brokers.tab() === 'real'"
+      (click)="brokers.setTab('real')"
+    >
+      Real
+    </button>
+  </nav>
+
+  @if (brokers.tab() === 'paper') {
+    <app-portfolio-panel
+      [currentSymbol]="symbol()"
+      [currentName]="series()?.name ?? null"
+      [currentPrice]="quote()?.close ?? null"
+      (selected)="onSymbolSelected($event)"
+    />
+  } @else {
+    <app-broker-panel />
+  }
 } @else {
 
 <!-- Three docked columns on a desktop. On a phone the two side panels leave the flow and

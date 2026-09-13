@@ -626,3 +626,40 @@ app-price-chart {
     flex: 1 0 20rem;
   }
 }
+
+/* The Papel / Real switch inside Cartera. A segmented control and not the pill row the panels
+   use for their own tabs: those pick one of many things of the same kind, and this picks between
+   two kinds. Made to look like one control so the difference reads before either label does. */
+.subtabs {
+  display: inline-flex;
+  align-self: flex-start;
+  margin: 0.6rem 0.75rem 0;
+  padding: 0.15rem;
+  border: 1px solid var(--border-control);
+  border-radius: 999px;
+  background: var(--bg-control);
+}
+
+.subtab {
+  padding: 0.2rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.subtab:hover {
+  color: var(--text-strong);
+}
+
+.subtab.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}

@@ -15,3 +15,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Broker statements. Real ones are a full financial history: they stay on the machine.
+docs/samples/
