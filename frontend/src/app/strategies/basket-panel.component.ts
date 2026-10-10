@@ -129,15 +129,12 @@ const COLUMNS: ReadonlyArray<{ key: SortKey; label: string; numeric: boolean }> 
     </section>
   `,
   styles: `
-    /* The section has to be a child of the screen's grid to sit where the tester sat, and a
-       host box in between would be the thing the grid placed instead. */
+    /* The section is the box that sits where the tester sits; the host stays out of its way. */
     :host {
       display: contents;
     }
 
     .basket {
-      grid-column: 2;
-      grid-row: 2;
       display: grid;
       grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
       height: 13.5rem;
@@ -332,13 +329,6 @@ const COLUMNS: ReadonlyArray<{ key: SortKey; label: string; numeric: boolean }> 
     /* The host is display: contents, so this sits in the tester's slot of the strategies
        grid and has to unstack on the same breakpoint that grid does — not on the 900px one
        below, which is about these two columns and not about where the panel lands. */
-    @media (max-width: 767px) {
-      .basket {
-        grid-column: 1;
-        grid-row: auto;
-      }
-    }
-
     @media (max-width: 900px) {
       .basket {
         grid-template-columns: 1fr;

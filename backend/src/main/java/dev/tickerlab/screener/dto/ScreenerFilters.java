@@ -74,5 +74,12 @@ public record ScreenerFilters(String query,
                                * somebody is trading from one printed by two orders, and it is a
                                * count and not a ratio: there is no premarket average to divide by.
                                */
-                              Long minPremarketVolume) {
+                              Long minPremarketVolume,
+                              /**
+                               * How far the 50-day sits from the 200-day, in percent of the 200-day.
+                               * Positive means the fast average is above the slow one. Derived from
+                               * the two price-vs-average columns, so it needs no column of its own.
+                               */
+                              BigDecimal minSmaGap,
+                              BigDecimal maxSmaGap) {
 }

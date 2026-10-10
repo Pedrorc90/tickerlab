@@ -176,6 +176,9 @@ export interface Filters {
   maxGapPercent: number | null;
   /** A count and not a ratio: there is no premarket average to divide it by. */
   minPremarketVolume: number | null;
+  /** The 50-day against the 200-day, in percent of the 200-day: positive is the fast one above. */
+  minSmaGap: number | null;
+  maxSmaGap: number | null;
 }
 
 /** The numeric half of the filters: what a dropdown can set. */
@@ -532,7 +535,43 @@ export const RANGE_SELECTS: readonly RangeSelect[] = [
       { label: 'Precio por debajo', max: 0 },
     ],
   },
+  {
+    id: 'smaGap',
+    label: 'Separación SMA 50/200',
+    group: 'Técnico',
+    minKey: 'minSmaGap',
+    maxKey: 'maxSmaGap',
+    options: [
+      { label: 'Cualquiera' },
+      { label: 'SMA 50 por encima', min: 0 },
+      { label: 'SMA 50 por debajo', max: 0 },
+      { label: 'Pegadas (±3 %)', min: -3, max: 3 },
+      { label: 'Separación 0-3 % encima', min: 0, max: 3 },
+      { label: 'Separándose (3-10 % encima)', min: 3, max: 10 },
+      { label: 'Abiertas (+10 %)', min: 10 },
+    ],
+  },
+  {
+    id: 'smaCross',
+    label: 'Cruce SMA 50/200',
+    group: 'Técnico',
+    // No bounds: the server keeps today's gap and not its history, so it cannot answer this.
+    // `max` is how many sessions back the golden cross may be, read by `crossWindow`.
+    options: [
+      { label: 'Cualquiera' },
+      { label: 'Últimos 3 días', max: 3 },
+      { label: 'Últimos 5 días', max: 5 },
+      { label: 'Últimas 2 semanas', max: 10 },
+      { label: 'Último mes', max: 21 },
+    ],
+  },
 ];
+
+/** Sessions the golden-cross filter reaches back, or null when it is off. */
+export function crossWindow(picks: Readonly<Record<string, number>>): number | null {
+  const select = RANGE_SELECTS.find((candidate) => candidate.id === 'smaCross');
+  return select?.options[picks['smaCross'] ?? 0]?.max ?? null;
+}
 
 /**
  * A saved screen: the dropdowns it moves, each named by the label of the option it lands on
@@ -628,6 +667,16 @@ export const PRESETS: readonly Preset[] = [
     sort: 'gapPercent',
   },
   {
+    name: 'Cruce de medias',
+    hint: 'La SMA 50 acaba de pasar por encima de la SMA 200 (hasta un 3 % de separación) con el precio sobre ambas: el cruce dorado en su primera fase.',
+    picks: {
+      smaGap: 'Separación 0-3 % encima',
+      vsSma50: 'Precio por encima',
+      vsSma200: 'Precio por encima',
+      avgVolume3m: '1 M+ de media',
+    },
+  },
+  {
     // The fifth is somebody else's screen, kept as they wrote it: mid-cap and up, priced
     // where funds buy, paying nothing, liquid and still near its high. Two of their seven
     // bounds are missing here and are not faked — see the hint.
@@ -696,6 +745,8 @@ export function filtersFrom(
     minGapPercent: null,
     maxGapPercent: null,
     minPremarketVolume: null,
+    minSmaGap: null,
+    maxSmaGap: null,
   };
   for (const select of RANGE_SELECTS) {
     const option = select.options[picks[select.id] ?? 0];

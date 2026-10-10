@@ -8,10 +8,16 @@ export class ScreenerService {
   private readonly http = inject(HttpClient);
 
   /** Empty filters are left out of the query so the backend reads them as "no filter". */
-  search(filters: Filters, page: number, sort: SortField, descending: boolean): Promise<ScreenerPage> {
+  search(
+    filters: Filters,
+    page: number,
+    sort: SortField,
+    descending: boolean,
+    size = PAGE_SIZE,
+  ): Promise<ScreenerPage> {
     let params = new HttpParams()
       .set('page', page)
-      .set('size', PAGE_SIZE)
+      .set('size', size)
       .set('sort', sort)
       .set('desc', descending);
     if (filters.query.trim()) {

@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import {
   INDICATORS,
   Indicator,
@@ -24,7 +31,10 @@ export interface PeriodChange {
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Clicking anywhere else dismisses an open period popover; the popover itself stops
   // the event before it gets here.
-  host: { '(document:click)': 'openPopover.set(null)' },
+  host: {
+    '(document:click)': 'closeMenus()',
+    '[class.bar]': "layout() === 'bar'",
+  },
   template: `
     <aside class="indicators" aria-label="Indicadores">
       <div class="indicators-head">
@@ -42,6 +52,7 @@ export interface PeriodChange {
       </div>
 
       @for (indicator of indicators; track indicator.value) {
+        @if (layout() !== 'bar' || visible().has(indicator.value)) {
         <span class="indicator-row">
           <span class="indicator-controls">
             <button
@@ -94,6 +105,40 @@ export interface PeriodChange {
 
           @if (showHints()) {
             <small class="indicator-hint">{{ indicator.hint }}</small>
+          }
+        </span>
+        }
+      }
+
+      <!-- The bar shows only what is on; everything else waits behind this button. -->
+      @if (layout() === 'bar') {
+        <span class="indicator-row">
+          <button
+            type="button"
+            class="legend-add"
+            [class.open]="menuOpen()"
+            [attr.aria-expanded]="menuOpen()"
+            title="Añadir indicador"
+            (click)="$event.stopPropagation(); toggleMenu()"
+          >
+            + Indicador
+          </button>
+
+          @if (menuOpen()) {
+            <div class="add-menu" (click)="$event.stopPropagation()">
+              @for (indicator of hidden(); track indicator.value) {
+                <button
+                  type="button"
+                  class="add-item"
+                  (click)="toggled.emit(indicator.value); menuOpen.set(false)"
+                >
+                  <i class="swatch {{ indicator.swatch }}"></i>
+                  {{ indicator.label }}
+                </button>
+              } @empty {
+                <span class="add-empty">Todos los indicadores están activos</span>
+              }
+            </div>
           }
         </span>
       }
@@ -353,6 +398,90 @@ export interface PeriodChange {
       );
     }
 
+    /* The bar shape: one line of pills over the chart, descriptions left to the column. */
+    :host(.bar) .indicators {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem 0.5rem;
+      padding: 0.35rem 0.75rem;
+      overflow: visible;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    :host(.bar) .indicators-head,
+    :host(.bar) .indicator-hint {
+      display: none;
+    }
+
+    :host(.bar) .legend-toggle {
+      flex: none;
+    }
+
+    :host(.bar) .period-popover {
+      left: 0;
+    }
+
+    .legend-add {
+      padding: 0.15rem 0.6rem;
+      border: 1px dashed var(--border-control);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-dim);
+      font: inherit;
+      line-height: 1.5;
+      cursor: pointer;
+    }
+
+    .legend-add:hover,
+    .legend-add.open {
+      border-color: var(--border-focus);
+      color: var(--text-strong);
+    }
+
+    /* Same furniture as the period popover: it opens over the chart, under its button. */
+    .add-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      z-index: 10;
+      display: grid;
+      gap: 0.15rem;
+      min-width: 9rem;
+      margin-top: 0.25rem;
+      padding: 0.35rem;
+      border: 1px solid var(--border-control);
+      border-radius: 6px;
+      background: var(--bg-raised);
+      box-shadow: 0 6px 20px var(--shadow);
+    }
+
+    .add-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.5rem;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-input);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .add-item:hover {
+      background: var(--bg-control-hover);
+      color: var(--text-strong);
+    }
+
+    .add-empty {
+      padding: 0.3rem 0.5rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
     /* On a phone the legend appears in two shapes, and neither is the docked column. As the
        chart screen's sheet it is a list that slides up; inside the screener detail, where there
        is no sheet to open, it is a strip of pills over the candles that scrolls sideways. */
@@ -432,6 +561,8 @@ export class IndicatorLegendComponent {
   readonly visible = input.required<ReadonlySet<Indicator>>();
   readonly periods = input.required<IndicatorPeriods>();
   readonly showHints = input(true);
+  /** `column` is the docked panel and the sheet; `bar` is the strip over the chart. */
+  readonly layout = input<'column' | 'bar'>('column');
 
   readonly toggled = output<Indicator>();
   readonly hintsToggled = output<void>();
@@ -440,6 +571,14 @@ export class IndicatorLegendComponent {
   /** Which pill has its period popover open, if any. */
   protected readonly openPopover = signal<Indicator | null>(null);
 
+  /** Whether the bar's "add indicator" menu is open. */
+  protected readonly menuOpen = signal(false);
+
+  /** What the bar does not show: the indicators that are off. */
+  protected readonly hidden = computed(() =>
+    this.indicators.filter(({ value }) => !this.visible().has(value)),
+  );
+
   /** `SMA 50`, `MACD 12/26/9`, plain `Volumen` — whatever the pill has to say right now. */
   protected labelOf(label: string, params: ReadonlyArray<PeriodParam>): string {
     const suffix = periodSuffix(params, this.periods());
@@ -447,7 +586,18 @@ export class IndicatorLegendComponent {
   }
 
   protected togglePopover(indicator: Indicator): void {
+    this.menuOpen.set(false);
     this.openPopover.update((open) => (open === indicator ? null : indicator));
+  }
+
+  protected toggleMenu(): void {
+    this.openPopover.set(null);
+    this.menuOpen.update((open) => !open);
+  }
+
+  protected closeMenus(): void {
+    this.openPopover.set(null);
+    this.menuOpen.set(false);
   }
 
   /**

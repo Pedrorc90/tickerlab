@@ -1,5 +1,14 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { AuthService } from './auth/auth.service';
 import { LoginComponent } from './auth/login.component';
 import { UserMenuComponent } from './auth/user-menu.component';
@@ -30,6 +39,7 @@ import { PortfolioService } from './portfolio/portfolio.service';
 import { BrokerPanelComponent } from './portfolio/broker-panel.component';
 import { BrokerService } from './portfolio/broker.service';
 import { StrategiesPanelComponent } from './strategies/strategies-panel.component';
+import { StrategyResultsComponent } from './strategies/strategy-results.component';
 import {
   ScreenerSymbol,
   formatCompact,
@@ -41,17 +51,21 @@ import { WatchlistPanelComponent } from './watchlist/watchlist-panel.component';
 import { Watchlist } from './watchlist/watchlist.models';
 
 /**
- * The four screens the app has. `strategies` and `portfolio` read the same ticker and timeframe
- * as `chart` — the same candles asked a different question, and then bought — so only `screener`
- * parts ways.
+ * The three screens the app has. `portfolio` reads the same ticker and timeframe as `chart` —
+ * the same candles, and then bought — so only `screener` parts ways. The strategies are not a
+ * screen of their own: they are a layer of the chart, with a tab in its left rail.
  */
-type View = 'chart' | 'screener' | 'strategies' | 'portfolio';
+type View = 'chart' | 'screener' | 'portfolio';
+
+/** What the chart screen's left rail is showing: the indicators or the strategy controls. */
+type Rail = 'indicators' | 'strategies';
 
 /**
- * On a phone the two side panels have nowhere to dock, so they slide up over the chart one at
- * a time. `null` is the ordinary state: the chart alone, which is what the screen is for.
+ * On a phone the side panels have nowhere to dock, so they slide up over the chart one at a
+ * time. `null` is the ordinary state: the chart alone, which is what the screen is for. The
+ * first two are the two halves of the rail.
  */
-type Sheet = 'indicators' | 'watchlist' | null;
+type Sheet = Rail | 'watchlist' | null;
 
 /** Something recognisable has to be on screen before the user types anything. */
 const DEFAULT_SYMBOL = 'AAPL';
@@ -92,6 +106,9 @@ function storedRow(): ScreenerSymbol | null {
     return null;
   }
 }
+
+/** Which half of the rail was left up. Only the non-default is stored, like everything here. */
+const RAIL_KEY = 'tickerlab.rail';
 
 /** Which indicators were switched off. UI state, so it stays in the browser. */
 const HIDDEN_INDICATORS_KEY = 'tickerlab.hiddenIndicators';
@@ -159,6 +176,7 @@ function storedPeriods(): IndicatorPeriods {
     PriceChartComponent,
     ScreenerPanelComponent,
     StrategiesPanelComponent,
+    StrategyResultsComponent,
     PortfolioPanelComponent,
     BrokerPanelComponent,
     WatchlistPanelComponent,
@@ -224,6 +242,15 @@ export class App {
 
   /** Which panel is up over the chart on a phone. Never open on a screen wide enough to dock. */
   protected readonly sheet = signal<Sheet>(null);
+  /** The indicators on a first visit; the rule controls when the last session left them up. */
+  protected readonly rail = signal<Rail>(
+    localStorage.getItem(RAIL_KEY) === 'strategies' ? 'strategies' : 'indicators',
+  );
+  /**
+   * Always mounted on the chart screen, and hidden rather than destroyed when the other half of
+   * the rail is up: the signals and the lines it draws belong to the chart, not to the tab.
+   */
+  protected readonly strategies = viewChild(StrategiesPanelComponent);
   /** Everything on for a first visit; after that, however the legend was left. */
   protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(storedIndicators());
   /** Textbook periods on a first visit; after that, whatever the popovers were left on. */
@@ -252,6 +279,26 @@ export class App {
   protected readonly myMarkers = computed(() =>
     orderMarkers(this.myOrders(), this.series()?.candles ?? []),
   );
+
+  /**
+   * What the chart draws: the indicators switched on by hand plus the ones the ticked rules
+   * read. The union is returned as is when no rule adds anything, so a plain chart never sees a
+   * new set it would have to diff.
+   */
+  protected readonly chartIndicators = computed(() => {
+    const extra = this.strategies()?.overlayIndicators();
+    return extra?.size ? new Set([...this.visibleIndicators(), ...extra]) : this.visibleIndicators();
+  });
+  /** Where an indicator is in both halves the rule's period wins: its signals were cut with it. */
+  protected readonly chartPeriods = computed<IndicatorPeriods>(() => ({
+    ...this.periods(),
+    ...this.strategies()?.overlayPeriods(),
+  }));
+  /** Your own fills and the run's entries and exits, drawn by the same code on the same chart. */
+  protected readonly chartMarkers = computed(() => [
+    ...this.myMarkers(),
+    ...(this.strategies()?.markers() ?? []),
+  ]);
 
   /** Last bar plus its move against the previous close: the numbers a chart header shows. */
   protected readonly quote = computed(() => {
@@ -294,6 +341,13 @@ export class App {
       }
     });
     effect(() => localStorage.setItem(CHART_TYPE_KEY, this.chartType()));
+    effect(() => {
+      if (this.rail() === 'strategies') {
+        localStorage.setItem(RAIL_KEY, 'strategies');
+      } else {
+        localStorage.removeItem(RAIL_KEY);
+      }
+    });
     // Closing the detail clears the key rather than storing a null: no selection is the
     // state a first visit is already in, and that one reads storage as absent.
     effect(() => {
@@ -402,7 +456,8 @@ export class App {
       name: 'Screener',
       entries: rows.map(({ symbol, name }) => ({ symbol, name })),
     });
-    this.showView('strategies');
+    this.rail.set('strategies');
+    this.showView('chart');
   }
 
   protected showView(view: View): void {
@@ -413,6 +468,10 @@ export class App {
   /** Tapping the button of the panel already up closes it, the way a drawer handle behaves. */
   protected toggleSheet(sheet: Exclude<Sheet, null>): void {
     this.sheet.update((open) => (open === sheet ? null : sheet));
+    // Opening one half of the rail is also choosing it: the sheet shows whichever is up.
+    if (sheet !== 'watchlist') {
+      this.rail.set(sheet);
+    }
   }
 
   protected closeSheet(): void {

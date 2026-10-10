@@ -8,22 +8,13 @@ import {
   output,
   signal,
 } from '@angular/core';
-import {
-  CandleSeries,
-  ChartType,
-  DEFAULT_PERIODS,
-  Indicator,
-  IndicatorPeriods,
-} from '../market/market.models';
+import { CandleSeries } from '../market/market.models';
 import { MarketService } from '../market/market.service';
 import { ThemeService } from '../theme/theme.service';
-import { PriceChartComponent } from '../market/price-chart.component';
-import { formatPercent, formatPrice } from '../screener/screener.models';
 import { Watchlist } from '../watchlist/watchlist.models';
 import { WatchlistService } from '../watchlist/watchlist.service';
 import { BasketRun, runBasket } from './basket';
-import { BasketPanelComponent } from './basket-panel.component';
-import { STARTING_CAPITAL, runBacktest } from './backtest';
+import { runBacktest } from './backtest';
 import {
   COMBINE_MODES,
   CombineMode,
@@ -55,33 +46,22 @@ const MODE_KEY = 'tickerlab.strategyMode';
 /** Their numbers. Same rule as the indicator ones: only what was moved off the default. */
 const PARAMS_KEY = 'tickerlab.strategyParams';
 
-/** Whether the volume pane is open. Nothing to do with the run: it is what the chart draws. */
-const VOLUME_KEY = 'tickerlab.strategyVolume';
-
-/** The equity sparkline's box. Drawn with `preserveAspectRatio="none"`, so it is a grid, not px. */
-const SPARK_WIDTH = 240;
-const SPARK_HEIGHT = 44;
-
-/** Enough points to keep the shape and few enough to keep the path string small. */
-const SPARK_POINTS = 400;
-
-const DATE_FORMAT = new Intl.DateTimeFormat('es-ES', {
-  day: '2-digit',
-  month: '2-digit',
-  year: '2-digit',
-});
-
 /**
  * The ticked strategies, in catalogue order however they were stored — the order is what the
  * chart resolves its slots by, and it should not depend on which box was clicked first.
  *
  * A session saved before this screen could combine holds a single id under the old key: it is
  * read as a list of one, so the strategy that was last looked at is still the one that opens.
- * Anything unrecognised falls back to the first of the catalogue rather than to nothing: an
- * empty screen with no explanation is the one outcome that looks like a bug.
+ * An empty list saved on purpose («Ninguna») stays empty, and so does a first visit: the panel
+ * now sits on the chart screen, where signals nobody ticked would be drawn over every chart.
+ * Anything else unrecognised falls back to the first of the catalogue, not to nothing.
  */
 function storedStrategies(): ReadonlyArray<Strategy> {
-  const saved: unknown[] = read(STRATEGIES_KEY) ?? [localStorage.getItem(LEGACY_STRATEGY_KEY)];
+  const legacy = localStorage.getItem(LEGACY_STRATEGY_KEY);
+  const saved: unknown[] = read(STRATEGIES_KEY) ?? (legacy === null ? [] : [legacy]);
+  if (!saved.length) {
+    return [];
+  }
   const ids = new Set(saved.filter((id): id is string => typeof id === 'string'));
   const ticked = STRATEGIES.filter(({ id }) => ids.has(id));
   return ticked.length ? ticked : [STRATEGIES[0]];
@@ -125,7 +105,6 @@ function storedParams(): StrategyParams {
 @Component({
   selector: 'app-strategies-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BasketPanelComponent, PriceChartComponent],
   template: `
     <!-- The same rail the chart screen gives the indicators, and for the same reason: what
          gets ticked and tuned is a list you keep coming back to, and a list reads down a side
@@ -139,6 +118,19 @@ function storedParams(): StrategyParams {
       <!-- The numbers sit under the strategy they belong to and only while it is ticked. That
            is what pays for dropping the group name: «Rápida» says nothing on its own, and it
            needs no label when the only thing above it is the strategy it belongs to. -->
+      <div class="strategy-row">
+        <button
+          type="button"
+          class="strategy"
+          [class.active]="!ticked().length"
+          [attr.aria-pressed]="!ticked().length"
+          title="Solo el gráfico, sin reglas ni backtest"
+          (click)="clearTicked()"
+        >
+          <span class="strategy-name">Ninguna</span>
+        </button>
+      </div>
+
       @for (option of strategies; track option.id) {
         <div class="strategy-row">
           <button
@@ -279,22 +271,6 @@ function storedParams(): StrategyParams {
         </label>
       </div>
 
-      <!-- What the chart draws, not what the run does: switching the pane on changes nothing
-           about the backtest. It sits under the gate above because that is what it is for —
-           a minimum volume is impossible to pick without the bars it filters in front of you. -->
-      <div class="overlays" role="group" aria-label="Qué dibuja el gráfico">
-        <button
-          type="button"
-          class="mode-option"
-          [class.active]="showVolume()"
-          [attr.aria-pressed]="showVolume()"
-          title="Abre el panel de volumen bajo el precio"
-          (click)="showVolume.set(!showVolume())"
-        >
-          Volumen
-        </button>
-      </div>
-
       <!-- The same configuration over a whole list. One ticker cannot tell a strategy from a
            coincidence: with five rules and three periods each, something always looks brilliant
            on some chart, and the only answer to that is running it over thirty of them. -->
@@ -354,194 +330,25 @@ function storedParams(): StrategyParams {
       <!-- The rules and what the simulation leaves out, at the foot of the controls that wrote
            them: a backtest that does not say what it charged is a number nobody can compare
            with anything. -->
-      <p class="rules">
-        <span class="rule"><span class="dot buy"></span>Dentro cuando {{ entryLine() }}</span>
-        <span class="rule"><span class="dot sell"></span>{{ exitLine() }}</span>
-        <span class="caveat">Al cierre, todo dentro y todo fuera · {{ costLine() }}</span>
-      </p>
-    </aside>
-
-    <main class="chart-area">
-      <app-price-chart
-        [series]="series()"
-        [chartType]="chartType()"
-        [indicators]="chartIndicators()"
-        [periods]="chartPeriods()"
-        [markers]="backtest().markers"
-      />
-    </main>
-
-    <!-- One set of numbers at a time. The body below keeps its indentation inside the branch:
-         reindenting sixty lines would bury the change in the diff. -->
-    @if (visibleBasket(); as run) {
-      <app-basket-panel [run]="run" (closed)="basket.set(null)" />
-    } @else {
-      <section class="tester" aria-label="Resultado del backtest">
-        <div class="summary">
-          <header class="summary-head">
-            <div class="headline">
-              <span class="headline-label">Rentabilidad</span>
-              <span
-                class="headline-value"
-                [class.up]="stats().totalReturn > 0"
-                [class.down]="stats().totalReturn < 0"
-              >
-                {{ percent(stats().totalReturn) }}
-              </span>
-              <span class="headline-note">
-                comprar y mantener {{ percent(stats().buyHoldReturn) }}
-              </span>
-            </div>
-
-            @if (spark(); as curve) {
-              <svg
-                class="equity"
-                [attr.viewBox]="'0 0 ' + sparkWidth + ' ' + sparkHeight"
-                preserveAspectRatio="none"
-                aria-label="Curva de capital"
-              >
-                <line
-                  class="equity-base"
-                  x1="0"
-                  [attr.y1]="curve.base"
-                  [attr.x2]="sparkWidth"
-                  [attr.y2]="curve.base"
-                />
-                <path
-                  class="equity-line"
-                  [class.up]="stats().totalReturn > 0"
-                  [class.down]="stats().totalReturn < 0"
-                  [attr.d]="curve.path"
-                />
-              </svg>
-            }
-          </header>
-
-          <dl class="stats">
-            <div class="stat">
-              <dt>Operaciones</dt>
-              <dd>
-                {{ stats().closedTrades }}
-                @if (stats().openTrade) {
-                  <span class="stat-note">+1 abierta</span>
-                }
-              </dd>
-            </div>
-            <div class="stat">
-              <dt>Aciertos</dt>
-              <dd>{{ hits() }}</dd>
-            </div>
-            <div class="stat">
-              <dt>Ganancia media</dt>
-              <dd class="up">{{ percent(stats().averageWin) }}</dd>
-            </div>
-            <div class="stat">
-              <dt>Pérdida media</dt>
-              <dd class="down">{{ percent(stats().averageLoss) }}</dd>
-            </div>
-            <div class="stat">
-              <dt>Factor</dt>
-              <dd>{{ factor(stats().profitFactor) }}</dd>
-            </div>
-            <div class="stat">
-              <dt>Caída máxima</dt>
-              <dd class="down">{{ percent(stats().maxDrawdown) }}</dd>
-            </div>
-            <div class="stat">
-              <dt>Exposición</dt>
-              <dd>{{ ratio(stats().exposure, '%') }}</dd>
-            </div>
-            <div class="stat">
-              <dt>Duración media</dt>
-              <dd>{{ ratio(stats().averageBars, ' velas') }}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div class="trades">
-          <table>
-            <thead>
-              <tr>
-                <th class="num">#</th>
-                <th>Entrada</th>
-                <th class="num">Precio</th>
-                <th>Salida</th>
-                <th class="num">Precio</th>
-                <th class="num">Velas</th>
-                <th class="num">Resultado</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (trade of recentFirst(); track trade.entryTime; let i = $index) {
-                <tr [class.running]="trade.open">
-                  <td class="num">{{ trades().length - i }}</td>
-                  <td>{{ date(trade.entryTime) }}</td>
-                  <td class="num">{{ price(trade.entryPrice) }}</td>
-                  <td>{{ trade.exitTime === null ? 'abierta' : date(trade.exitTime) }}</td>
-                  <td class="num">{{ price(trade.exitPrice) }}</td>
-                  <td class="num">{{ trade.bars }}</td>
-                  <td
-                    class="num"
-                    [class.up]="trade.returnPercent > 0"
-                    [class.down]="trade.returnPercent < 0"
-                  >
-                    {{ percent(trade.returnPercent) }}
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td class="empty" colspan="7">
-                    {{
-                      series()
-                        ? 'Las reglas no llegan a cumplirse en este histórico.'
-                        : 'Busca un ticker para probar la estrategia.'
-                    }}
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
-    }
-
-    <!-- The watchlists, handed in from the shell rather than built here: they are already bound
-         to the ticker and the search box up there, and a second instance would be a second
-         source of truth for the same three lists. -->
-    <aside class="dock">
-      <ng-content />
+      @if (ticked().length) {
+        <p class="rules">
+          <span class="rule"><span class="dot buy"></span>Dentro cuando {{ entryLine() }}</span>
+          <span class="rule"><span class="dot sell"></span>{{ exitLine() }}</span>
+          <span class="caveat">Al cierre, todo dentro y todo fuera · {{ costLine() }}</span>
+        </p>
+      }
     </aside>
   `,
   styles: `
+    /* The rail the shell docks on the left (or slides up on a phone): the aside is the grid
+       child, so the host gets out of the way, the same as the indicator legend. */
     :host {
-      display: grid;
-      /* Three docked columns, the same shape as the chart screen: what you configure down the
-         left, the candles in the middle, the watchlists down the right. Only the chart row
-         grows — the numbers under it never leave the screen. The rail is wider than the chart
-         screen's 10.8rem because these names are sentences and those were initials. */
-      grid-template-rows: minmax(0, 1fr) auto;
-      grid-template-columns: 16.34rem minmax(0, 1fr) 15rem;
-      min-height: 0;
-      overflow: hidden;
-      background: var(--bg-app);
-    }
-
-    /* Spans chart and tester so the list is as tall as it is on the chart screen. Its own grid
-       rather than a plain box: that is what makes the panel projected into it fill the dock,
-       which no rule of this component could reach — the content belongs to the shell's view. */
-    .dock {
-      grid-column: 3;
-      grid-row: 1 / -1;
-      display: grid;
-      min-height: 0;
-      overflow: hidden;
+      display: contents;
     }
 
     /* Full height down the left, the same furniture the indicator rail wears so the two
        screens read as one app: same panel background, same divider, same scroll. */
     .strategies {
-      grid-column: 1;
-      grid-row: 1 / -1;
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
@@ -606,8 +413,7 @@ function storedParams(): StrategyParams {
 
     /* A shell of its own under the list, so «Y | O» reads as a control over the strategies
        above it instead of a word left loose between two of them. */
-    .mode,
-    .overlays {
+    .mode {
       display: flex;
       gap: 0.25rem;
       padding: 0.2rem;
@@ -669,10 +475,6 @@ function storedParams(): StrategyParams {
 
     /* Its own air instead of a rule of its own: the frame around the button is already a
        block, and a line above it would fence off a single control. */
-    .overlays {
-      margin-top: 0.55rem;
-    }
-
     .globals {
       display: flex;
       gap: 0.35rem;
@@ -898,297 +700,23 @@ function storedParams(): StrategyParams {
       font-size: 0.68rem;
     }
 
-    .chart-area {
-      grid-column: 2;
-      grid-row: 1;
-      min-width: 0;
-      min-height: 0;
-      padding-left: 1.25rem;
-    }
-
-    /* Numbers on the left, the trades that produced them on the right: the summary is what
-       gets read first, and the list is what it has to be checked against. */
-    .tester {
-      grid-column: 2;
-      grid-row: 2;
-      display: grid;
-      grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
-      height: 13.5rem;
-      border-top: 1px solid var(--border);
-      background: var(--bg-panel);
-    }
-
-    .summary {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      padding: 0.6rem 0.9rem;
-      border-right: 1px solid var(--border);
-      overflow: hidden;
-    }
-
-    .summary-head {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .headline {
-      display: grid;
-      min-width: 0;
-    }
-
-    .headline-label {
-      color: var(--text-label);
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    .headline-value {
-      font-size: 1.35rem;
-      font-weight: 700;
-      color: var(--text);
-      font-variant-numeric: tabular-nums;
-    }
-
-    .headline-note {
-      color: var(--text-dim);
-      font-size: 0.72rem;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .equity {
-      flex: 1;
-      min-width: 0;
-      height: 2.75rem;
-    }
-
-    .equity-base {
-      stroke: var(--border-control);
-      stroke-width: 1;
-      stroke-dasharray: 3 3;
-      vector-effect: non-scaling-stroke;
-    }
-
-    .equity-line {
-      fill: none;
-      stroke: var(--text-dim);
-      stroke-width: 1.5;
-      stroke-linejoin: round;
-      /* The path is drawn in a box that gets stretched to the element, so without this the
-         stroke comes out of it several times thicker across than it is tall. */
-      vector-effect: non-scaling-stroke;
-    }
-
-    .equity-line.up {
-      stroke: var(--chart-trade-buy);
-    }
-
-    .equity-line.down {
-      stroke: var(--chart-trade-sell);
-    }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.3rem 0.9rem;
-      margin: 0;
-      overflow-y: auto;
-    }
-
-    .stat {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 0.5rem;
-      font-size: 0.78rem;
-    }
-
-    .stat dt {
-      color: var(--text-label);
-      white-space: nowrap;
-    }
-
-    .stat dd {
-      margin: 0;
-      color: var(--text);
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-    }
-
-    .stat-note {
-      color: var(--text-dim);
-      font-size: 0.7rem;
-    }
-
-    .trades {
-      overflow: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.78rem;
-    }
-
-    thead th {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      padding: 0.35rem 0.6rem;
-      background: var(--bg-panel);
-      border-bottom: 1px solid var(--border);
-      color: var(--text-label);
-      font-weight: 500;
-      text-align: left;
-      white-space: nowrap;
-    }
-
-    tbody td {
-      padding: 0.25rem 0.6rem;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-secondary);
-      white-space: nowrap;
-    }
-
-    .num {
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* The open trade is the one that has not happened yet in full: it is shown, and marked. */
-    tbody tr.running td {
-      color: var(--text-dim);
-      font-style: italic;
-    }
-
-    .empty {
-      padding: 1.2rem 0.6rem;
-      color: var(--text-dim);
-      text-align: center;
-      white-space: normal;
-    }
-
-    .up {
-      color: var(--chart-up);
-    }
-
-    .down {
-      color: var(--chart-down);
-    }
-
-    /* ---- Tablets: the same step the chart screen takes, so the two docks stay one width ---- */
-
-    @media (max-width: 1099px) {
-      :host {
-        grid-template-columns: 12rem minmax(0, 1fr) 12rem;
-      }
-    }
-
-    /* ---- Phones: the page scrolls, so the chart claims a height and everything stacks ---- */
+    /* ---- Phones: the host is the sheet the shell slides up, so the rail is what scrolls in it ---- */
 
     @media (max-width: 767px) {
-      :host {
-        grid-template-rows: auto auto auto auto;
-        grid-template-columns: 1fr;
-        overflow: visible;
+      :host(.pane) {
+        display: flex;
+        flex-direction: column;
       }
 
-      /* Everything unstacks into the flow in source order. This screen has no sheet bar to
-         bring a floating panel back, so nothing here is allowed to float: the rail heads the
-         page, the chart follows, and the page scrolls down to the lists. */
-      .strategies,
-      .chart-area,
-      .tester,
-      .dock {
-        grid-column: 1;
-        grid-row: auto;
-      }
-
-      .strategies {
-        overflow: visible;
+      :host(.pane) .strategies {
+        flex: 1;
+        min-height: 0;
+        overflow-x: hidden;
+        /* The sheet keeps the gesture: a drag that finds no more list to move must not carry on
+           into the page under it. */
+        overscroll-behavior: contain;
+        touch-action: pan-y;
         border-right: 0;
-        border-bottom: 1px solid var(--border);
-      }
-
-      /* Back to a bar, because a full-width column of one control per line is a page of
-         scrolling before the chart. The rules keep their own line at the end of it. */
-      .strategies,
-      .group,
-      .globals,
-      .basket-control {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.4rem 0.7rem;
-      }
-
-      .strategy,
-      .basket-label,
-      .basket-list,
-      .basket-run {
-        flex: none;
-        width: auto;
-      }
-
-      /* The lines dissolve back into the bar: it is as wide as the page and wraps on its
-         own, and a break placed for a rail four boxes wide would leave a hole in it. */
-      .param-line {
-        display: contents;
-      }
-
-      /* Nothing to share out here: the bar is as wide as the page. */
-      .param {
-        flex: none;
-      }
-
-      .param input {
-        width: 3.4rem;
-      }
-
-      .choice-option {
-        min-width: 2.2rem;
-      }
-
-      .basket-list {
-        max-width: 10rem;
-      }
-
-      .globals,
-      .basket-control,
-      .rules {
-        padding-top: 0;
-        border-top: 0;
-      }
-
-      .rules {
-        flex: 1 0 100%;
-        margin: 0;
-      }
-
-      .dock {
-        max-height: 22rem;
-      }
-
-      .chart-area {
-        height: 55dvh;
-        min-height: 16rem;
-        padding-left: 0.5rem;
-      }
-
-      .tester {
-        grid-template-columns: 1fr;
-        height: auto;
-      }
-
-      .summary {
-        border-right: 0;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .trades {
-        max-height: 18rem;
       }
     }
   `,
@@ -1196,7 +724,6 @@ function storedParams(): StrategyParams {
 export class StrategiesPanelComponent {
   /** The candles the strategy is tested on. The screen above owns the ticker and the timeframe. */
   readonly series = input<CandleSeries | null>(null);
-  readonly chartType = input<ChartType>('CANDLES');
   /**
    * A list handed over from the screener rather than saved: it rides in shaped like a watchlist
    * so everything below it — the dropdown, the run, the hint — cannot tell the two apart. It is
@@ -1218,11 +745,6 @@ export class StrategiesPanelComponent {
   protected readonly stop = STOP_LOSS;
   protected readonly volumeGate = VOLUME_FILTER;
   protected readonly cost = TRADE_COST;
-  protected readonly sparkWidth = SPARK_WIDTH;
-  protected readonly sparkHeight = SPARK_HEIGHT;
-
-  protected readonly percent = formatPercent;
-  protected readonly price = formatPrice;
 
   protected readonly ticked = signal<ReadonlyArray<Strategy>>(storedStrategies());
   protected readonly mode = signal<CombineMode>(storedMode());
@@ -1235,8 +757,6 @@ export class StrategiesPanelComponent {
     const charged = this.params().tradeCost;
     return charged > 0 ? `${charged} pb por operación` : 'sin comisiones';
   });
-  /** Off by default: the pane it opens costs the price a fifth of its height. */
-  protected readonly showVolume = signal(localStorage.getItem(VOLUME_KEY) === 'on');
 
   private readonly theme = inject(ThemeService);
   private readonly market = inject(MarketService);
@@ -1266,13 +786,17 @@ export class StrategiesPanelComponent {
    * kind of wrong number that never announces itself. Coming back to the timeframe brings it
    * back rather than making it be run again.
    */
-  protected readonly visibleBasket = computed(() => {
+  readonly visibleBasket = computed(() => {
     const run = this.basket();
     return run && run.timeframe === this.series()?.timeframe ? run : null;
   });
 
   protected readonly canRunBasket = computed(
-    () => this.progress() === null && !!this.series() && !!this.selectedList()?.entries.length,
+    () =>
+      this.progress() === null &&
+      !!this.ticked().length &&
+      !!this.series() &&
+      !!this.selectedList()?.entries.length,
   );
 
   /**
@@ -1280,70 +804,25 @@ export class StrategiesPanelComponent {
    * few passes over an array the browser already has, so there is nothing to debounce and
    * nothing to ask the backend: ticking a strategy repaints on the same frame it is clicked.
    */
-  protected readonly backtest = computed(() =>
+  readonly backtest = computed(() =>
     runBacktest(this.ticked(), this.mode(), this.series()?.candles ?? [], this.params()),
   );
-  protected readonly stats = computed(() => this.backtest().stats);
-  protected readonly trades = computed(() => this.backtest().trades);
-  /** Newest first: the last trade is the one being looked for, and the panel is four rows tall. */
-  protected readonly recentFirst = computed(() => [...this.trades()].reverse());
 
   /**
-   * The chart draws the ticked strategies and nothing else — their own lines, over the candles,
-   * with nothing the legend of the other screen has switched on. Both halves come out of the
-   * same pass so the slots and the indicators using them can never disagree.
+   * The lines the ticked strategies need on the chart. Both halves come out of the same pass so
+   * the slots and the indicators using them can never disagree.
    */
   private readonly chart = computed(() => chartSetup(this.ticked(), this.params()));
+  /** What the shell draws over its own chart: the entries and exits of the run. */
+  readonly markers = computed(() => this.backtest().markers);
   /**
-   * The strategies' own indicators plus whatever is switched on by hand. Copied rather than
-   * added to in place: the set behind it is memoised, and the next run would find the volume
-   * already in it and never take it back out.
+   * The indicators the ticked rules read, for the shell to add to the ones switched on by hand.
+   * Empty with nothing ticked, which is what keeps a plain chart plain.
    */
-  protected readonly chartIndicators = computed(() => {
-    const indicators = new Set<Indicator>(this.chart().indicators);
-    if (this.showVolume()) {
-      indicators.add('VOLUME');
-    }
-    return indicators;
-  });
-  protected readonly chartPeriods = computed<IndicatorPeriods>(() => ({
-    ...DEFAULT_PERIODS,
-    ...this.chart().periods,
-  }));
-
-  /**
-   * The equity curve as one path plus the line the capital started on, which is what turns a
-   * wiggle into «ahead» or «behind». Scaled to its own extremes rather than to a fixed range:
-   * the shape is the point, and a curve that never moved much would otherwise be a flat line.
-   */
-  protected readonly spark = computed(() => {
-    const curve = this.backtest().equity;
-    if (curve.length < 2) {
-      return null;
-    }
-
-    const stride = Math.ceil(curve.length / SPARK_POINTS);
-    const points = curve.filter((_, i) => i % stride === 0 || i === curve.length - 1);
-
-    let min = Infinity;
-    let max = -Infinity;
-    for (const { value } of points) {
-      min = Math.min(min, value);
-      max = Math.max(max, value);
-    }
-    const span = max - min || 1;
-    const step = SPARK_WIDTH / (points.length - 1);
-    const y = (value: number) => SPARK_HEIGHT - ((value - min) / span) * SPARK_HEIGHT;
-
-    return {
-      path: points
-        .map((point, i) => `${i ? 'L' : 'M'}${(i * step).toFixed(1)},${y(point.value).toFixed(1)}`)
-        .join(' '),
-      // Clamped: a run that never came back under its starting capital would draw the baseline
-      // off the box, and a dashed line hanging outside the frame reads as a rendering bug.
-      base: Math.min(SPARK_HEIGHT, Math.max(0, y(STARTING_CAPITAL))).toFixed(1),
-    };
-  });
+  readonly overlayIndicators = computed(() => this.chart().indicators);
+  /** Their periods: where an indicator is in both, these win, because the signals were cut with them. */
+  readonly overlayPeriods = computed(() => this.chart().periods);
+  readonly hasRules = computed(() => this.ticked().length > 0);
 
   constructor() {
     // The single-strategy key has already been read into the list; leaving it behind would
@@ -1354,7 +833,6 @@ export class StrategiesPanelComponent {
       localStorage.setItem(STRATEGIES_KEY, JSON.stringify(this.ticked().map(({ id }) => id))),
     );
     effect(() => localStorage.setItem(MODE_KEY, this.mode()));
-    effect(() => localStorage.setItem(VOLUME_KEY, this.showVolume() ? 'on' : 'off'));
 
     void this.watchlists.list().then((lists) => {
       this.saved.set(lists);
@@ -1392,18 +870,28 @@ export class StrategiesPanelComponent {
   /**
    * Ticking keeps the catalogue order rather than the clicking order: it is the order the
    * chart hands out its slots by, and which box was pressed first is not a preference anyone
-   * expressed. The last ticked one cannot be unticked — nothing ticked is a screen of zeroes
-   * with no rule on it to explain them, which reads as a broken backtest and not an empty one.
+   * expressed. Unticking the last one leaves none, same as «Ninguna»: the tester says so in a
+   * line instead of showing zeroes with no rule behind them.
    */
   protected toggle(strategy: Strategy): void {
     this.ticked.update((current) => {
       const ids = new Set(current.map(({ id }) => id));
       if (ids.has(strategy.id)) {
-        return ids.size > 1 ? current.filter(({ id }) => id !== strategy.id) : current;
+        return current.filter(({ id }) => id !== strategy.id);
       }
       ids.add(strategy.id);
       return STRATEGIES.filter(({ id }) => ids.has(id));
     });
+    this.basket.set(null);
+  }
+
+  /** Back to the numbers of the ticked rules: the drawer calls it from its «Volver» button. */
+  closeBasket(): void {
+    this.basket.set(null);
+  }
+
+  protected clearTicked(): void {
+    this.ticked.set([]);
     this.basket.set(null);
   }
 
@@ -1445,6 +933,9 @@ export class StrategiesPanelComponent {
 
   /** Why the button is off, on the button itself: a disabled control that says nothing is a bug. */
   protected basketHint(): string {
+    if (!this.ticked().length) {
+      return 'Marca una estrategia para probarla sobre la cesta';
+    }
     if (!this.series()) {
       return 'Busca un ticker para fijar la temporalidad de la prueba';
     }
@@ -1520,31 +1011,5 @@ export class StrategiesPanelComponent {
     this.params.update((params) => ({ ...params, [param.key]: value }));
     this.basket.set(null);
     return `${value}`;
-  }
-
-  /**
-   * «7/12 · 58 %» — how many of the crosses that closed ended up, and over how many. The share
-   * on its own reads the same at 1 of 2 as at 60 of 120, and those are not the same evidence.
-   */
-  protected hits(): string {
-    const { winners, closedTrades, winRate } = this.stats();
-    return winRate === null ? '—' : `${winners}/${closedTrades} · ${this.ratio(winRate, '%')}`;
-  }
-
-  /** A count or a share, with its unit. Null is «nothing to measure», not zero. */
-  protected ratio(value: number | null, unit: string): string {
-    return value === null ? '—' : `${value.toFixed(value < 10 ? 1 : 0)}${unit}`;
-  }
-
-  /** Gross gains over gross losses. A run that never lost divides by nothing. */
-  protected factor(value: number | null): string {
-    if (value === null) {
-      return '—';
-    }
-    return Number.isFinite(value) ? value.toFixed(2) : '∞';
-  }
-
-  protected date(time: number): string {
-    return DATE_FORMAT.format(new Date(time * 1000));
   }
 }

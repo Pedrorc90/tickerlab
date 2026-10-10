@@ -11,6 +11,8 @@ import {
   signal,
 } from '@angular/core';
 import { ViewportService } from '../layout/viewport.service';
+import { MarketService } from '../market/market.service';
+import { daysSinceGoldenCross } from './cross-date';
 import {
   FILTER_GROUPS,
   FilterGroup,
@@ -20,6 +22,7 @@ import {
   RANGE_SELECTS,
   ScreenerSymbol,
   SortField,
+  crossWindow,
   filtersFrom,
   picksOf,
   relativeVolume,
@@ -38,6 +41,16 @@ const TYPING_PAUSE_MS = 250;
 
 /** How often the table asks again while a quote sweep is running. */
 const POLL_MS = 3000;
+
+/**
+ * The cross filter needs candles, which only the browser asks for, so it works on the set the
+ * server filters down to and not on a page: this is the most it will look at (the backend's
+ * own page ceiling), with the candle requests in flight at once, and how long a result holds
+ * — the server keeps candles for the same fifteen minutes, so a fresher answer is not there.
+ */
+const CROSS_SCAN_LIMIT = 200;
+const CROSS_CONCURRENCY = 6;
+const CROSS_TTL_MS = 15 * 60_000;
 
 /** Room the watchlist menu needs below its button before it has to slide up. */
 const MENU_HEIGHT = 260;
@@ -78,7 +91,7 @@ interface RestoredView {
 
 interface Column {
   /** Doubles as the CSS class and, unless derived, as the field the backend orders by. */
-  readonly field: SortField | 'relVolume';
+  readonly field: SortField | 'relVolume' | 'crossDays';
   readonly label: string;
   readonly numeric: boolean;
   /**
@@ -100,6 +113,8 @@ const COLUMNS: readonly Column[] = [
   // Next to the volume it qualifies rather than at the end: read alone, 40 M says nothing
   // about whether today is busy for this ticker, and the pair says it without arithmetic.
   { field: 'relVolume', label: 'Vol. rel.', numeric: true, derived: true },
+  // Only drawn while the cross filter is on: it is blank on every row otherwise.
+  { field: 'crossDays', label: 'Cruzó hace', numeric: true, derived: true },
   // The same pair of questions asked before the bell, so they sit with the volume that answers
   // it during the session. Sortable, unlike the relative volume beside them: these two are
   // stored columns, so ordering by them ranks the universe instead of reordering the page.
@@ -294,6 +309,9 @@ function optionIndex(id: string, label: unknown): number {
     @if (notice(); as message) {
       <p class="notice">{{ message }}</p>
     }
+    @if (scanNote(); as message) {
+      <p class="notice">{{ message }}</p>
+    }
     @if (error(); as message) {
       <p class="notice error">{{ message }}</p>
     }
@@ -379,6 +397,9 @@ function optionIndex(id: string, label: unknown): number {
               >
                 {{ multiple(relVolume(row)) }}
               </span>
+              @if (crossLimit() !== null) {
+                <span class="chip"><b>Cruce</b> {{ crossLabel(row) }}</span>
+              }
               <!-- The premarket chips appear only when there is one: in the narrow card the
                    row is four lines of chips, and two dashes on every ticker all day would
                    cost more room than the pair is worth outside the morning. -->
@@ -442,7 +463,7 @@ function optionIndex(id: string, label: unknown): number {
         <table class="symbols">
           <thead>
             <tr>
-              @for (column of columns; track column.field) {
+              @for (column of columns(); track column.field) {
                 <th
                   class="col-{{ column.field }}"
                   [class.numeric]="column.numeric"
@@ -495,6 +516,9 @@ function optionIndex(id: string, label: unknown): number {
                 >
                   {{ multiple(relVolume(row)) }}
                 </td>
+                @if (crossLimit() !== null) {
+                  <td class="col-crossDays numeric">{{ crossLabel(row) }}</td>
+                }
                 <!-- Empty on almost every row and that is the design: the volume is only
                      measured for the symbols that gapped, and only once the morning run has
                      gone. A dash here means "not asked", never "nothing traded". -->
@@ -539,7 +563,7 @@ function optionIndex(id: string, label: unknown): number {
               </tr>
             } @empty {
               <tr>
-                <td class="empty" [attr.colspan]="columns.length + 1">
+                <td class="empty" [attr.colspan]="columns().length + 1">
                   @if (loading()) {
                     Cargando…
                   } @else if (filtered()) {
@@ -1048,6 +1072,7 @@ function optionIndex(id: string, label: unknown): number {
 
     .col-changePercent,
     .col-relVolume,
+    .col-crossDays,
     .col-gapPercent {
       width: 6rem;
     }
@@ -1479,7 +1504,6 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly multiple = formatMultiple;
   protected readonly relVolume = relativeVolume;
 
-  protected readonly columns = COLUMNS;
   /** What the order dropdown offers: everything the backend can actually order by. */
   protected readonly sortable = COLUMNS.filter((column) => !column.derived);
   protected readonly rsLeader = RS_LEADER;
@@ -1517,6 +1541,11 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly loadingUniverse = signal(false);
   protected readonly notice = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
+  /** Progress and limits of the cross scan: kept apart from `notice`, which a sweep owns. */
+  protected readonly scanNote = signal<string | null>(null);
+  /** Sessions since the golden cross, for the tickers the filter has looked at. */
+  private readonly crossOf = signal<ReadonlyMap<string, number | null>>(new Map());
+  private readonly crossCache = new Map<string, { days: number | null; at: number }>();
 
   /** The row whose watchlist menu is open, and where to draw it over the table. */
   protected readonly addTarget = signal<{ row: ScreenerSymbol; top: number; right: number } | null>(
@@ -1542,6 +1571,13 @@ export class ScreenerPanelComponent implements OnDestroy {
   /** What the backend is being asked for right now. */
   protected readonly filters = computed(() =>
     filtersFrom(this.query(), this.exchange(), this.picks()),
+  );
+
+  /** How far back the golden cross may be, or null: the one filter the server cannot apply. */
+  protected readonly crossLimit = computed(() => crossWindow(this.picks()));
+
+  protected readonly columns = computed(() =>
+    this.crossLimit() === null ? COLUMNS.filter(({ field }) => field !== 'crossDays') : COLUMNS,
   );
 
   /** How many dropdowns are off their "no filter" entry. Shown on the Filtros button. */
@@ -1570,6 +1606,7 @@ export class ScreenerPanelComponent implements OnDestroy {
   protected readonly rangeTo = computed(() => Math.min(this.total(), (this.page() + 1) * PAGE_SIZE));
 
   private readonly service = inject(ScreenerService);
+  private readonly market = inject(MarketService);
   private readonly watchlists = inject(WatchlistService);
   /** Discards responses that arrive after the filter already moved on. */
   private requestId = 0;
@@ -1815,25 +1852,56 @@ export class ScreenerPanelComponent implements OnDestroy {
     }
   }
 
+  protected crossLabel(row: ScreenerSymbol): string {
+    const days = this.crossOf().get(row.symbol);
+    if (days === undefined || days === null) {
+      return '—';
+    }
+    return days === 0 ? 'hoy' : `${days} d`;
+  }
+
   private async load(): Promise<void> {
     const id = ++this.requestId;
     this.loading.set(true);
     this.error.set(null);
+    const limit = this.crossLimit();
     try {
+      // With the cross filter on, the server hands over the whole set it can narrow down (up to
+      // the scan limit) and the page is cut here, after the candles say which ones crossed.
       const result = await this.service.search(
         this.filters(),
-        this.page(),
+        limit === null ? this.page() : 0,
         this.sort(),
         this.descending(),
+        limit === null ? PAGE_SIZE : CROSS_SCAN_LIMIT,
       );
       if (id !== this.requestId) {
         return;
       }
-      this.rows.set(result.items);
-      this.total.set(result.total);
+      let items = result.items;
+      let total = result.total;
+      if (limit === null) {
+        this.scanNote.set(null);
+      } else {
+        const days = await this.crossDaysOf(items, id);
+        if (id !== this.requestId) {
+          return;
+        }
+        this.crossOf.set(days);
+        const crossed = items.filter(({ symbol }) => (days.get(symbol) ?? Infinity) <= limit);
+        total = crossed.length;
+        items = crossed.slice(this.page() * PAGE_SIZE, (this.page() + 1) * PAGE_SIZE);
+        this.scanNote.set(
+          result.total > CROSS_SCAN_LIMIT
+            ? `Hay ${result.total} resultados y solo se han mirado los ${CROSS_SCAN_LIMIT} primeros según el orden: añade filtros para acotar.`
+            : null,
+        );
+      }
+      this.rows.set(items);
+      this.total.set(total);
       this.top.set(new Set(result.top ?? []));
       this.onSweepState(result.refreshing);
-      const picked = result.items.find(({ symbol }) => symbol === this.selectedSymbol());
+      const picked = items.find(({ symbol }) => symbol === this.selectedSymbol());
       if (picked) {
         this.refreshed.emit(picked);
       }
@@ -1842,6 +1910,7 @@ export class ScreenerPanelComponent implements OnDestroy {
         this.rows.set([]);
         this.total.set(0);
         this.top.set(new Set());
+        this.scanNote.set(null);
         this.error.set(this.messageOf(failure));
       }
     } finally {
@@ -1849,6 +1918,51 @@ export class ScreenerPanelComponent implements OnDestroy {
         this.loading.set(false);
       }
     }
+  }
+
+  /**
+   * Sessions since each row's golden cross, from the daily candles. Same pool as the basket
+   * run: a few requests at a time, so 200 tickers do not open 200 sockets. A ticker whose
+   * candles fail is left out and so never matches; a newer `load` stops the pool, and what it
+   * already fetched stays cached for that one.
+   */
+  private async crossDaysOf(
+    rows: ScreenerSymbol[],
+    id: number,
+  ): Promise<Map<string, number | null>> {
+    const found = new Map<string, number | null>();
+    const pending: string[] = [];
+    const now = Date.now();
+    for (const { symbol } of rows) {
+      const cached = this.crossCache.get(symbol);
+      if (cached && now - cached.at < CROSS_TTL_MS) {
+        found.set(symbol, cached.days);
+      } else {
+        pending.push(symbol);
+      }
+    }
+
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < pending.length && id === this.requestId) {
+        const symbol = pending[next++];
+        try {
+          const { candles } = await this.market.loadCandles(symbol, 'DAY');
+          const days = daysSinceGoldenCross(candles);
+          this.crossCache.set(symbol, { days, at: Date.now() });
+          found.set(symbol, days);
+        } catch {
+          // No history to read a cross from.
+        }
+        if (id === this.requestId) {
+          this.scanNote.set(`Calculando cruces… ${found.size} de ${rows.length}`);
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CROSS_CONCURRENCY, pending.length) }, () => worker()),
+    );
+    return found;
   }
 
   /** A sweep that just finished leaves fresh numbers on screen without anyone clicking. */

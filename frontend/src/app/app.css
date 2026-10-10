@@ -192,11 +192,82 @@ app-strategies-panel {
   color: var(--chart-down);
 }
 
-/* Indicators docked left, chart in the middle, watchlists on the right. */
-.workspace {
+/* The rail docked left, the chart in the middle with the strategy run under it, the
+   watchlists on the right. The rail is as wide as the indicators need until the strategies tab
+   is up: those names are sentences, and the indicators were initials. */
+.stage {
   display: grid;
-  grid-template-columns: 10.8rem 1fr 15rem;
+  grid-template-columns: 15% 1fr 15%;
+  grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
+}
+
+.stage.wide-rail {
+  grid-template-columns: 15% 1fr 15%;
+}
+
+/* A box only on a phone, where the sheets are parked inside it. Docked, its children are
+   cells of the stage, which is what lets the run sit under the chart column alone. */
+.workspace {
+  display: contents;
+}
+
+/* Two rows of its own: the tabs, then whichever half is up, stretched to the rest. */
+.rail {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.rail > .rail-off {
+  display: none;
+}
+
+.rail-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.2rem;
+  padding: 0.4rem 0.5rem 0.2rem;
+  border-right: 1px solid var(--border);
+}
+
+.rail-tab {
+  padding: 0.3rem 0.2rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.rail-tab:hover {
+  color: var(--text);
+}
+
+.rail-tab.active {
+  background: var(--bg-control);
+  color: var(--text-strong);
+}
+
+.workspace > app-watchlist-panel {
+  grid-column: 3;
+  grid-row: 1 / -1;
+}
+
+.results {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.workspace > .chart-area {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .chart-area {
@@ -209,6 +280,35 @@ app-strategies-panel {
 app-price-chart {
   display: block;
   height: 100%;
+}
+
+/* Docked: the indicators are a bar over the chart, so the rail keeps only the strategy half.
+   The rail copy of the legend and its tab stay for the phone sheet. */
+@media (min-width: 768px) {
+  .workspace > .chart-area {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .rail > app-indicator-legend,
+  .rail-tab:first-child {
+    display: none;
+  }
+
+  .rail-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  /* Up whatever the stored tab says: the indicators tab no longer exists down here. */
+  .rail > app-strategies-panel.rail-off {
+    display: contents;
+  }
+}
+
+@media (max-width: 767px) {
+  app-indicator-legend.chart-bar {
+    display: none;
+  }
 }
 
 /* ---- Screener detail: the picked row, drawn beside the list ---- */
@@ -408,8 +508,12 @@ app-price-chart {
 
   /* Both panels give the chart back about four centimetres between them. The legend is at its
      floor here: below this its labels start wrapping mid-word. */
-  .workspace {
+  .stage {
     grid-template-columns: 9.5rem 1fr 12rem;
+  }
+
+  .stage.wide-rail {
+    grid-template-columns: 12rem 1fr 12rem;
   }
 
   .detail-chart {
@@ -494,8 +598,30 @@ app-price-chart {
 
   /* The chart gets the whole column and the panels come off the flow: containing block for
      the two of them and for the tap target that dismisses them. */
+  .stage {
+    display: block;
+  }
+
+  /* The tabs are the sheet bar down here, and the rail is only a parent for the two sheets. */
+  .rail {
+    display: contents;
+  }
+
+  .rail-tabs {
+    display: none;
+  }
+
+  /* One column, so the docked placements are undone: left in place they would open a second
+     column, and a sheet pinned to a grid area is parked in that area instead of the box. */
+  .workspace > .chart-area,
+  .workspace > app-watchlist-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
   .workspace {
     position: relative;
+    display: grid;
     grid-template-columns: 1fr;
     /* With the page scrolling, the chart has to claim a height of its own or it collapses to
        nothing: two thirds of the screen, and never less than a readable block. */
@@ -555,7 +681,7 @@ app-price-chart {
     z-index: 3;
     bottom: 0;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 1px;
     background: var(--border);
     border-top: 1px solid var(--border);

@@ -13,6 +13,9 @@ frontend/node_modules/
 .DS_Store
 Thumbs.db
 
+# Local secrets (TICKERLAB_USERS passwords for the VS Code launch config)
+.env
+
 # Logs
 *.log
 

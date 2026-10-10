@@ -86,6 +86,24 @@ final class SymbolSpecs {
                 }
             }
 
+            // The gap between the 50-day and the 200-day, rebuilt from the two price-vs-average
+            // columns: with v = price/SMA - 1, SMA50/SMA200 = (1 + v200) / (1 + v50). Multiplied
+            // out for the same reason as above, and a row missing either column drops out.
+            BigDecimal minSmaGap = filters.minSmaGap();
+            BigDecimal maxSmaGap = filters.maxSmaGap();
+            if (minSmaGap != null || maxSmaGap != null) {
+                BigDecimal hundred = BigDecimal.valueOf(100);
+                Expression<BigDecimal> fast = builder.sum(root.<BigDecimal>get("vsSma50"), hundred);
+                Expression<BigDecimal> slow = builder.sum(root.<BigDecimal>get("vsSma200"), hundred);
+                where.add(builder.gt(fast, BigDecimal.ZERO));
+                if (minSmaGap != null) {
+                    where.add(builder.ge(slow, builder.prod(fast, BigDecimal.ONE.add(minSmaGap.movePointLeft(2)))));
+                }
+                if (maxSmaGap != null) {
+                    where.add(builder.le(slow, builder.prod(fast, BigDecimal.ONE.add(maxSmaGap.movePointLeft(2)))));
+                }
+            }
+
             return where.isEmpty() ? null : builder.and(where.toArray(new Predicate[0]));
         };
     }

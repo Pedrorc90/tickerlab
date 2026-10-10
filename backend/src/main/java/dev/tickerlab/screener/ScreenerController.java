@@ -71,6 +71,8 @@ public class ScreenerController {
             @RequestParam(required = false) BigDecimal minGapPercent,
             @RequestParam(required = false) BigDecimal maxGapPercent,
             @RequestParam(required = false) Long minPremarketVolume,
+            @RequestParam(required = false) BigDecimal minSmaGap,
+            @RequestParam(required = false) BigDecimal maxSmaGap,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false) String sort,
@@ -81,7 +83,7 @@ public class ScreenerController {
                 minFromHigh52w, minVsSma50, maxVsSma50, minVsSma200, maxVsSma200, maxFromLow52w,
                 minAvgVolume3m, minSharesOutstanding, minForwardPer, maxForwardPer, minEps, maxAnalystRating,
                 minRsRating, minScore, minRelVolume, maxRelVolume,
-                minGapPercent, maxGapPercent, minPremarketVolume);
+                minGapPercent, maxGapPercent, minPremarketVolume, minSmaGap, maxSmaGap);
         return service.search(filters, page, size, sort, desc);
     }
 

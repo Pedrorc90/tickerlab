@@ -99,14 +99,6 @@
     <button
       type="button"
       class="view"
-      [class.active]="view() === 'strategies'"
-      (click)="showView('strategies')"
-    >
-      Estrategias
-    </button>
-    <button
-      type="button"
-      class="view"
       [class.active]="view() === 'portfolio'"
       (click)="showView('portfolio')"
     >
@@ -263,24 +255,7 @@
 
 <!-- The quotebar above is shared: the backtest runs on the ticker whose price it is showing,
      and one header for both screens is what makes switching between them read as one app. -->
-@if (view() === 'strategies') {
-  <!-- The same watchlist component the chart screen docks, projected into the panel: it stays
-       bound to the one symbol signal, so picking a ticker here retests the strategy on it and
-       the chart screen is already on it when you go back. No `pane` class — this screen has no
-       sheet bar, so on a phone the list stacks under the tester instead of floating over it. -->
-  <app-strategies-panel
-    [series]="series()"
-    [chartType]="chartType()"
-    [sentList]="sentBasket()"
-    (symbolPicked)="onSymbolSelected($event)"
-  >
-    <app-watchlist-panel
-      [currentSymbol]="symbol()"
-      [currentName]="series()?.name ?? null"
-      (selected)="onSymbolSelected($event)"
-    />
-  </app-strategies-panel>
-} @else if (view() === 'portfolio') {
+@if (view() === 'portfolio') {
   <!-- No chart here and no watchlist docked: the screen answers "what do I own and what is it
        worth", and the quotebar above already says which ticker the order form will buy.
 
@@ -320,48 +295,110 @@
   }
 } @else {
 
-<!-- Three docked columns on a desktop. On a phone the two side panels leave the flow and
-     slide up over the chart instead, which is why they carry `pane`: same components, same
-     bindings, and only the CSS knows the difference. -->
-<div class="workspace">
-  <app-indicator-legend
-    class="pane"
-    [class.open]="sheet() === 'indicators'"
-    [visible]="visibleIndicators()"
-    [periods]="periods()"
-    [showHints]="showHints()"
-    (toggled)="toggleIndicator($event)"
-    (hintsToggled)="toggleHints()"
-    (periodChanged)="onPeriodChanged($event)"
-  />
+<!-- Three docked columns on a desktop, and the run of the strategies under the chart. On a phone
+     the two side panels leave the flow and slide up over the chart instead, which is why they
+     carry `pane`: same components, same bindings, and only the CSS knows the difference.
+     The left rail holds both halves at once and hides the one that is not up: the strategy
+     panel keeps drawing its lines on the chart while the indicators are on show. -->
+<div class="stage" [class.wide-rail]="rail() === 'strategies'">
+  <div class="workspace">
+    <div class="rail">
+      <nav class="rail-tabs" aria-label="Panel izquierdo">
+        <button
+          type="button"
+          class="rail-tab"
+          [class.active]="rail() === 'indicators'"
+          [attr.aria-pressed]="rail() === 'indicators'"
+          (click)="rail.set('indicators')"
+        >
+          Indicadores
+        </button>
+        <button
+          type="button"
+          class="rail-tab"
+          [class.active]="rail() === 'strategies'"
+          [attr.aria-pressed]="rail() === 'strategies'"
+          (click)="rail.set('strategies')"
+        >
+          Estrategia
+        </button>
+      </nav>
 
-  <main class="chart-area">
-    <app-price-chart
-      [series]="series()"
-      [benchmark]="benchmark()"
-      [markers]="myMarkers()"
-      [indicators]="visibleIndicators()"
-      [periods]="periods()"
-      [chartType]="chartType()"
+      <app-indicator-legend
+        class="pane"
+        [class.rail-off]="rail() !== 'indicators'"
+        [class.open]="sheet() === 'indicators'"
+        [visible]="visibleIndicators()"
+        [periods]="periods()"
+        [showHints]="showHints()"
+        (toggled)="toggleIndicator($event)"
+        (hintsToggled)="toggleHints()"
+        (periodChanged)="onPeriodChanged($event)"
+      />
+
+      <app-strategies-panel
+        class="pane"
+        [class.rail-off]="rail() !== 'strategies'"
+        [class.open]="sheet() === 'strategies'"
+        [series]="series()"
+        [sentList]="sentBasket()"
+        (symbolPicked)="onSymbolSelected($event)"
+      />
+    </div>
+
+    <main class="chart-area">
+      <!-- The docked shape of the legend: a bar over the chart. On a phone the same pills live
+           in the rail's sheet instead, so this copy is hidden there. -->
+      <app-indicator-legend
+        class="chart-bar"
+        layout="bar"
+        [visible]="visibleIndicators()"
+        [periods]="periods()"
+        [showHints]="showHints()"
+        (toggled)="toggleIndicator($event)"
+        (hintsToggled)="toggleHints()"
+        (periodChanged)="onPeriodChanged($event)"
+      />
+      <app-price-chart
+        [series]="series()"
+        [benchmark]="benchmark()"
+        [markers]="chartMarkers()"
+        [indicators]="chartIndicators()"
+        [periods]="chartPeriods()"
+        [chartType]="chartType()"
+      />
+    </main>
+
+    <app-watchlist-panel
+      class="pane"
+      [class.open]="sheet() === 'watchlist'"
+      [currentSymbol]="symbol()"
+      [currentName]="series()?.name ?? null"
+      (selected)="onSymbolSelected($event)"
     />
-  </main>
 
-  <app-watchlist-panel
-    class="pane"
-    [class.open]="sheet() === 'watchlist'"
-    [currentSymbol]="symbol()"
-    [currentName]="series()?.name ?? null"
-    (selected)="onSymbolSelected($event)"
-  />
+    <!-- Tapping the chart behind an open sheet closes it rather than reaching the chart: the
+         gesture people already have for a panel in the way. Only exists while one is open. -->
+    @if (sheet()) {
+      <button type="button" class="sheet-backdrop" aria-label="Cerrar el panel" (click)="closeSheet()"></button>
+    }
+  </div>
 
-  <!-- Tapping the chart behind an open sheet closes it rather than reaching the chart: the
-       gesture people already have for a panel in the way. Only exists while one is open. -->
-  @if (sheet()) {
-    <button type="button" class="sheet-backdrop" aria-label="Cerrar el panel" (click)="closeSheet()"></button>
+  <!-- Outside the workspace so that on a phone, where the workspace is a fixed-height box the
+       sheets are parked in, the numbers follow it down the page instead of being clipped. -->
+  @if (strategies(); as panel) {
+    <app-strategy-results
+      class="results"
+      [backtest]="panel.backtest()"
+      [hasRules]="panel.hasRules()"
+      [basket]="panel.visibleBasket()"
+      [series]="series()"
+      (basketClosed)="panel.closeBasket()"
+    />
   }
 </div>
 
-<!-- The phone's only way back to the two panels. Hidden at every width where they are docked,
+<!-- The phone's only way back to the panels. Hidden at every width where they are docked,
      and its grid row collapses with it. -->
 <nav class="sheet-bar" aria-label="Paneles">
   <button
@@ -376,6 +413,17 @@
       <circle cx="12" cy="10" r="1.7" />
     </svg>
     Indicadores
+  </button>
+  <button
+    type="button"
+    class="sheet-tab"
+    [class.active]="sheet() === 'strategies'"
+    (click)="toggleSheet('strategies')"
+  >
+    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2 12l4-5 3 3 5-7" />
+    </svg>
+    Estrategia
   </button>
   <button
     type="button"
