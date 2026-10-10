@@ -31,7 +31,8 @@
 - [x] **F28 — Ichimoku operable** (2026-08-30)
 - [x] **F29 — Premarket: hueco y volumen antes de abrir** (2026-08-30) · falta una mañana con premarket real
 - [x] **F30 — La salida del gapper** (2026-08-30)
-- [x] **F31 — Cartera real desde el extracto del broker** (2026-08-31) · falta repaso visual
+- [x] **F31 — Cartera real desde el extracto del broker** (2026-08-31)
+- [x] **F32 — Indicadores en barra sobre el gráfico** (2026-10-10) · solo los activos, el resto tras «+ Indicador»; móvil conserva la hoja
 
 ## Pendiente de decidir
 - Frase de la estrategia con `Salida` (2026-08-30): el `hold` fijo describe media regla; hacerlo depender de params toca `Strategy` o se deja como el cruce a secas
@@ -50,7 +51,8 @@
 - Hoja de Indicadores en móvil real (F22): probar `touch-action: none` de `.chart-host`; antes comprobar que el bundle desplegado es el de `ng build`
 - Móvil en horizontal (F22): `@media (max-height: 500px)` que funda controles; ¿es caso de uso real?
 - Neon sin sembrar (F21): faltan los 5.956 símbolos (abrir Screener o `POST /api/screener/refresh`) y las 3 watchlists; ¿local y producción separados, o local apunta a Neon?
-- Bundle inicial 581,51 kB sobre 500 (warning): subir el techo o screener perezoso (exige router)
+- Barra de indicadores (F32): en móvil sigue la hoja y el detalle del screener la columna; ¿llevar la barra a los dos?
+- Bundle inicial 703,92 kB sobre 500 (warning): subir el techo o screener perezoso (exige router)
 - Exclusión de sectores en «Crecimiento US» (F18): 3 de 5 ★ son biotech; exige sector, cerrado desde F2
 
 ## Notas
