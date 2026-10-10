@@ -23,11 +23,11 @@
 - [ ] **F20 — Extensión: ruptura temprana contra tardía** · columna, filtro o penalización del Score, sin decidir
 - [x] **F21 — Login para dos y despliegue** (2026-08-18) · Neon sin sembrar
 - [x] **F22 — Responsive hasta 360px** (2026-08-18) · hoja de Indicadores sin arrastrar en móvil real
-- [x] **F23 — Ichimoku Kinko Hyo** (2026-08-27) · falta repaso visual
-- [x] **F24 — Smoothed Heikin Ashi** (2026-08-27) · falta repaso visual
-- [x] **F25 — Estrategias y backtest** (2026-08-27) · falta repaso visual
-- [x] **F26 — Catálogo combinable y cesta** (2026-08-27) · falta repaso visual
-- [x] **F27 — Cartera de papel** (2026-08-29) · falta repaso visual
+- [x] **F23 — Ichimoku Kinko Hyo** (2026-08-27)
+- [x] **F24 — Smoothed Heikin Ashi** (2026-08-27)
+- [x] **F25 — Estrategias y backtest** (2026-08-27)
+- [x] **F26 — Catálogo combinable y cesta** (2026-08-27)
+- [x] **F27 — Cartera de papel** (2026-08-29)
 - [x] **F28 — Ichimoku operable** (2026-08-30)
 - [x] **F29 — Premarket: hueco y volumen antes de abrir** (2026-08-30) · falta una mañana con premarket real
 - [x] **F30 — La salida del gapper** (2026-08-30)
