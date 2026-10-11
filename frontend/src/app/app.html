@@ -8,75 +8,16 @@
 
 <header class="topbar">
   <div class="brand">
-    <span class="brand-mark">◧</span>
+    <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="4" />
+      <path d="M7 15l3.5-4 3 2.5L17 8.5" />
+    </svg>
     <span class="brand-name">TickerLab</span>
   </div>
 
-  <!-- The screener brings its own ticker box and reads no timeframe of its own; the other two
-       screens are the same candles asked different questions, so they share this whole bar. -->
+  <!-- The screener brings its own ticker box; the other two screens share this one. -->
   @if (view() !== 'screener') {
     <app-ticker-search (selected)="onSymbolSelected($event)" />
-
-    <div class="timeframes" role="group" aria-label="Temporalidad">
-      @for (option of timeframes; track option.value) {
-        <button
-          type="button"
-          class="timeframe"
-          [class.active]="timeframe() === option.value"
-          [title]="option.label"
-          [attr.aria-label]="option.label"
-          (click)="onTimeframeSelected(option.value)"
-        >
-          {{ option.short }}
-        </button>
-      }
-    </div>
-
-    <!-- Four words saying what four drawings show. The name rides along as the tooltip and as
-         the accessible name, so nothing is lost by not spelling it out. -->
-    <div class="chart-types" role="group" aria-label="Tipo de gráfico">
-      @for (option of chartTypes; track option.value) {
-        <button
-          type="button"
-          class="chart-type"
-          [class.active]="chartType() === option.value"
-          [title]="option.label"
-          [attr.aria-label]="option.label"
-          (click)="onChartTypeSelected(option.value)"
-        >
-          @switch (option.value) {
-            @case ('CANDLES') {
-              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M5 1.5v2.5M5 11v3.5M11 2.5v2M11 11.5v2.5" />
-                <rect x="3" y="4" width="4" height="7" rx="1" />
-                <rect x="9" y="4.5" width="4" height="7" rx="1" />
-              </svg>
-            }
-            @case ('BARS') {
-              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M5 1.5v13M5 5H2.2M5 9.5h2.4M11 3v10M11 6.5H8.6M11 11h2.6" />
-              </svg>
-            }
-            @case ('LINE') {
-              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M2 11l3-4 3 2.5 3-5 3 3.5" />
-              </svg>
-            }
-            @case ('AREA') {
-              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  d="M2 11l3-4 3 2.5 3-5 3 3.5V14H2z"
-                  fill="currentColor"
-                  fill-opacity="0.25"
-                  stroke="none"
-                />
-                <path d="M2 11l3-4 3 2.5 3-5 3 3.5" />
-              </svg>
-            }
-          }
-        </button>
-      }
-    </div>
   }
 
   <div class="views" role="group" aria-label="Pantalla">
@@ -112,8 +53,8 @@
 </header>
 
 @if (view() === 'screener') {
-  <!-- The detail goes inside the panel, not after it: the two share a row that is a quarter
-       list and three quarters chart, and the filter bar above spans the pair. -->
+  <!-- The detail goes inside the panel, not after it: the two share a row that is a wide
+       list and a card a few rem wide, and the filter bar above spans the pair. -->
   <app-screener-panel
     [selectedSymbol]="selectedRow()?.symbol ?? null"
     (selected)="onScreenerSelected($event)"
@@ -126,8 +67,16 @@
     <section class="detail" aria-label="Detalle de la acción">
       <header class="detail-head">
         <span class="detail-symbol">{{ row.symbol }}</span>
-        <span class="detail-name">{{ row.name }}</span>
-        <span class="detail-exchange">{{ row.exchange }}</span>
+        <span class="detail-name">{{ row.name }} · {{ row.exchange }}</span>
+        <button type="button" class="detail-action" (click)="openInChart()">
+          Abrir en Gráfico →
+        </button>
+        <button type="button" class="detail-close" title="Cerrar el detalle" (click)="closeDetail()">
+          ✕
+        </button>
+      </header>
+
+      <div class="detail-quote">
         <span class="detail-price">{{ price(row.price) }}</span>
         <span
           class="detail-change"
@@ -136,7 +85,6 @@
         >
           {{ percent(row.changePercent) }}
         </span>
-
         @if (loading()) {
           <span class="detail-status">Cargando…</span>
         }
@@ -145,8 +93,7 @@
         }
 
         <!-- The same signal the chart header writes, not a second one: the detail opens on the
-             timeframe you were last reading and moving it here is moving it everywhere. Two
-             selectors disagreeing would mean checking which one wins before reading the chart. -->
+             timeframe you were last reading and moving it here is moving it everywhere. -->
         <div class="timeframes detail-timeframes" role="group" aria-label="Temporalidad">
           @for (option of timeframes; track option.value) {
             <button
@@ -161,60 +108,9 @@
             </button>
           }
         </div>
-
-        <button type="button" class="detail-action" (click)="openInChart()">
-          Abrir en Gráfico
-        </button>
-        <button type="button" class="detail-close" title="Cerrar el detalle" (click)="closeDetail()">
-          ✕
-        </button>
-      </header>
-
-      <dl class="metrics">
-        <div class="metric"><dt>Capitalización</dt><dd>{{ compact(row.marketCap) }}</dd></div>
-        <div class="metric"><dt>Volumen</dt><dd>{{ compact(row.volume) }}</dd></div>
-        <div class="metric"><dt>Vol. medio 3m</dt><dd>{{ compact(row.avgVolume3m) }}</dd></div>
-        <div class="metric"><dt>Acciones</dt><dd>{{ compact(row.sharesOutstanding) }}</dd></div>
-        <div class="metric"><dt>PER</dt><dd>{{ ratio(row.per) }}</dd></div>
-        <div class="metric"><dt>PER futuro</dt><dd>{{ ratio(row.forwardPer) }}</dd></div>
-        <div class="metric">
-          <dt>BPA</dt>
-          <dd [class.down]="(row.eps ?? 0) < 0">{{ ratio(row.eps) }}</dd>
-        </div>
-        <div class="metric"><dt>P/VC</dt><dd>{{ ratio(row.priceToBook) }}</dd></div>
-        <div class="metric"><dt>Dividendo</dt><dd>{{ percent(row.dividendYield) }}</dd></div>
-        <div class="metric">
-          <dt>52 semanas</dt>
-          <dd [class.up]="(row.change52w ?? 0) > 0" [class.down]="(row.change52w ?? 0) < 0">
-            {{ percent(row.change52w) }}
-          </dd>
-        </div>
-        <div class="metric"><dt>Desde máx. 52s</dt><dd>{{ percent(row.fromHigh52w) }}</dd></div>
-        <div class="metric"><dt>Sobre mín. 52s</dt><dd>{{ percent(row.fromLow52w) }}</dd></div>
-        <div class="metric">
-          <dt>vs SMA 50</dt>
-          <dd [class.up]="(row.vsSma50 ?? 0) > 0" [class.down]="(row.vsSma50 ?? 0) < 0">
-            {{ percent(row.vsSma50) }}
-          </dd>
-        </div>
-        <div class="metric">
-          <dt>vs SMA 200</dt>
-          <dd [class.up]="(row.vsSma200 ?? 0) > 0" [class.down]="(row.vsSma200 ?? 0) < 0">
-            {{ percent(row.vsSma200) }}
-          </dd>
-        </div>
-        <div class="metric"><dt>Analistas</dt><dd>{{ ratio(row.analystRating) }}</dd></div>
-      </dl>
+      </div>
 
       <div class="detail-chart">
-        <app-indicator-legend
-          [visible]="visibleIndicators()"
-          [periods]="periods()"
-          [showHints]="showHints()"
-          (toggled)="toggleIndicator($event)"
-          (hintsToggled)="toggleHints()"
-          (periodChanged)="onPeriodChanged($event)"
-        />
         <main class="chart-area">
           <app-price-chart
             [series]="series()"
@@ -225,6 +121,63 @@
           />
         </main>
       </div>
+
+      <!-- Every row of the list passed every filter set above it, so the ticks are not a test run
+           here: they show which filters did the work and what this row scored on each. -->
+      @if (screener()?.why(row); as items) {
+        @if (items.length) {
+          <section class="detail-why" aria-label="Por qué aparece">
+            <h4 class="detail-h">Por qué aparece · {{ items.length }} de {{ items.length }} filtros</h4>
+            <ul class="why">
+              @for (item of items; track item.id) {
+                <li>
+                  <span>{{ item.label }} <em>{{ item.tier }}</em></span>
+                  <strong>{{ item.value }}</strong>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      }
+
+      <section class="detail-facts" aria-label="Datos clave">
+        <h4 class="detail-h">Datos clave</h4>
+        <dl class="metrics">
+          <div class="metric"><dt>Capitalización</dt><dd>{{ compact(row.marketCap) }}</dd></div>
+          <div class="metric"><dt>Volumen</dt><dd>{{ compact(row.volume) }}</dd></div>
+          <div class="metric"><dt>Vol. medio 3m</dt><dd>{{ compact(row.avgVolume3m) }}</dd></div>
+          <div class="metric"><dt>Acciones</dt><dd>{{ compact(row.sharesOutstanding) }}</dd></div>
+          <div class="metric"><dt>PER</dt><dd>{{ ratio(row.per) }}</dd></div>
+          <div class="metric"><dt>PER futuro</dt><dd>{{ ratio(row.forwardPer) }}</dd></div>
+          <div class="metric">
+            <dt>BPA</dt>
+            <dd [class.down]="(row.eps ?? 0) < 0">{{ ratio(row.eps) }}</dd>
+          </div>
+          <div class="metric"><dt>P/VC</dt><dd>{{ ratio(row.priceToBook) }}</dd></div>
+          <div class="metric"><dt>Dividendo</dt><dd>{{ percent(row.dividendYield) }}</dd></div>
+          <div class="metric">
+            <dt>52 semanas</dt>
+            <dd [class.up]="(row.change52w ?? 0) > 0" [class.down]="(row.change52w ?? 0) < 0">
+              {{ percent(row.change52w) }}
+            </dd>
+          </div>
+          <div class="metric"><dt>Desde máx. 52s</dt><dd>{{ percent(row.fromHigh52w) }}</dd></div>
+          <div class="metric"><dt>Sobre mín. 52s</dt><dd>{{ percent(row.fromLow52w) }}</dd></div>
+          <div class="metric">
+            <dt>vs SMA 50</dt>
+            <dd [class.up]="(row.vsSma50 ?? 0) > 0" [class.down]="(row.vsSma50 ?? 0) < 0">
+              {{ percent(row.vsSma50) }}
+            </dd>
+          </div>
+          <div class="metric">
+            <dt>vs SMA 200</dt>
+            <dd [class.up]="(row.vsSma200 ?? 0) > 0" [class.down]="(row.vsSma200 ?? 0) < 0">
+              {{ percent(row.vsSma200) }}
+            </dd>
+          </div>
+          <div class="metric"><dt>Analistas</dt><dd>{{ ratio(row.analystRating) }}</dd></div>
+        </dl>
+      </section>
     </section>
   }
   </app-screener-panel>
@@ -237,7 +190,7 @@
     @if (quote(); as q) {
       <span class="quote-price">{{ q.close | number: '1.2-2' }} {{ data.currency }}</span>
       <span class="quote-change" [class.up]="q.positive" [class.down]="!q.positive">
-        {{ q.positive ? '+' : '' }}{{ q.change | number: '1.2-2' }}
+        {{ q.positive ? '▲' : '▼' }} {{ q.positive ? '+' : '' }}{{ q.change | number: '1.2-2' }}
         ({{ q.positive ? '+' : '' }}{{ q.changePercent | number: '1.2-2' }}%)
       </span>
       <span class="quote-volume">Vol {{ formatVolume(q.volume) }}</span>
@@ -347,6 +300,70 @@
     </div>
 
     <main class="chart-area">
+      <!-- How the chart is cut and drawn lives with the chart, not in the page header: it only
+           means something on this screen, and the portfolio shares that header. -->
+      <div class="chart-toolbar">
+        <div class="timeframes" role="group" aria-label="Temporalidad">
+          @for (option of timeframes; track option.value) {
+            <button
+              type="button"
+              class="timeframe"
+              [class.active]="timeframe() === option.value"
+              [title]="option.label"
+              [attr.aria-label]="option.label"
+              (click)="onTimeframeSelected(option.value)"
+            >
+              {{ option.short }}
+            </button>
+          }
+        </div>
+    
+        <!-- Four words saying what four drawings show. The name rides along as the tooltip and as
+             the accessible name, so nothing is lost by not spelling it out. -->
+        <div class="chart-types" role="group" aria-label="Tipo de gráfico">
+          @for (option of chartTypes; track option.value) {
+            <button
+              type="button"
+              class="chart-type"
+              [class.active]="chartType() === option.value"
+              [title]="option.label"
+              [attr.aria-label]="option.label"
+              (click)="onChartTypeSelected(option.value)"
+            >
+              @switch (option.value) {
+                @case ('CANDLES') {
+                  <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M5 1.5v2.5M5 11v3.5M11 2.5v2M11 11.5v2.5" />
+                    <rect x="3" y="4" width="4" height="7" rx="1" />
+                    <rect x="9" y="4.5" width="4" height="7" rx="1" />
+                  </svg>
+                }
+                @case ('BARS') {
+                  <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M5 1.5v13M5 5H2.2M5 9.5h2.4M11 3v10M11 6.5H8.6M11 11h2.6" />
+                  </svg>
+                }
+                @case ('LINE') {
+                  <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M2 11l3-4 3 2.5 3-5 3 3.5" />
+                  </svg>
+                }
+                @case ('AREA') {
+                  <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M2 11l3-4 3 2.5 3-5 3 3.5V14H2z"
+                      fill="currentColor"
+                      fill-opacity="0.25"
+                      stroke="none"
+                    />
+                    <path d="M2 11l3-4 3 2.5 3-5 3 3.5" />
+                  </svg>
+                }
+              }
+            </button>
+          }
+        </div>
+      </div>
       <!-- The docked shape of the legend: a bar over the chart. On a phone the same pills live
            in the rail's sheet instead, so this copy is hidden there. -->
       <app-indicator-legend

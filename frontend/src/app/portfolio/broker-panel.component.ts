@@ -10,10 +10,12 @@ import {
 import {
   Broker,
   BrokerAccount,
+  Flow,
   Holding,
   ImportResult,
   KIND_LABEL,
   Transaction,
+  TransactionKind,
   formatDay,
   formatMoney,
   formatPrice,
@@ -27,6 +29,33 @@ import { BrokerService } from './broker.service';
 
 /** How many statement lines the book shows: the screen is a page, not an archive. */
 const BOOK_LIMIT = 60;
+
+/** How many positions each side of the closed summary lists. */
+const RANK_SIZE = 6;
+
+interface BookFilter {
+  id: 'ALL' | 'TRADES' | 'DIVIDENDS' | 'FEES' | 'CASH';
+  label: string;
+  kinds: readonly TransactionKind[] | null;
+}
+
+const BOOK_FILTERS: readonly BookFilter[] = [
+  { id: 'ALL', label: 'Todos', kinds: null },
+  { id: 'TRADES', label: 'Compras y ventas', kinds: ['BUY', 'SELL', 'CORPORATE_ACTION'] },
+  { id: 'DIVIDENDS', label: 'Dividendos', kinds: ['DIVIDEND', 'WITHHOLDING'] },
+  { id: 'FEES', label: 'Comisiones', kinds: ['FEE'] },
+  { id: 'CASH', label: 'Ingresos y retiradas', kinds: ['DEPOSIT', 'WITHDRAWAL'] },
+];
+
+/** Kinds that can be pure cash bookkeeping: no instrument, so a mirror line cancels them. */
+const OFFSETTABLE = new Set<TransactionKind>(['DEPOSIT', 'WITHDRAWAL', 'INTEREST', 'OTHER']);
+
+/** A statement older than this is worth a nudge: the open result is only as fresh as it. */
+const STALE_AFTER_DAYS = 7;
+
+/** Darkest first, so the biggest slice leads the bar. Cash is the one neutral. */
+const SLICE_COLORS = ['#5c2a0e', '#9a4a1f', '#c4875a', '#d9a679', '#e4bf9c', '#eed5bc', '#f3e3d2'];
+const CASH_COLOR = '#a39a8c';
 
 @Component({
   selector: 'app-broker-panel',
@@ -136,12 +165,48 @@ const BOOK_LIMIT = 60;
       }
 
       @if (current.transactions > 0) {
+        @if (staleDays(); as days) {
+          <p class="notice" role="status">
+            <strong>El último movimiento importado es del {{ day(current.lastMovement) }}</strong>
+            (hace {{ days }} días). Importa tu extracto reciente para que el latente y los
+            dividendos estén al día; reimportar no duplica nada.
+          </p>
+        }
+
         <section class="summary" aria-label="Resumen de la cuenta">
-          @for (balance of current.balances; track balance.currency) {
-            <div class="tile">
-              <span class="label">Efectivo {{ balance.currency }}</span>
-              <strong class="value">{{ money(balance.amount, balance.currency) }}</strong>
+          @if (hero(); as h) {
+            <div class="hero">
+              <span class="hero-label">Patrimonio en {{ current.broker }}</span>
+              <strong class="hero-value">{{ money(h.wealth, h.currency) }}</strong>
+              <span class="hero-sub">
+                Posiciones {{ money(h.positions, h.currency) }} + efectivo
+                {{ money(h.cash, h.currency) }}{{ h.otherCash }}
+              </span>
+              @if (h.gain !== null) {
+                <div class="hero-gain">
+                  <span class="hero-label">Ganancia total</span>
+                  <strong [class.up]="h.gain > 0" [class.down]="h.gain < 0">
+                    {{ signed(h.gain, h.currency) }}
+                  </strong>
+                  <span [class.up]="h.gain > 0" [class.down]="h.gain < 0">
+                    {{ percent(h.gainPercent) }}
+                  </span>
+                </div>
+                <span class="hero-sub">
+                  Sobre {{ money(h.net, h.currency) }} aportados netos
+                  ({{ money(h.deposits, h.currency) }} ingresados −
+                  {{ money(h.withdrawals, h.currency) }} retirados)
+                </span>
+              }
             </div>
+          }
+          @if (!hero()) {
+            @for (balance of current.balances; track balance.currency) {
+              <div class="tile">
+                <span class="label">Efectivo {{ balance.currency }}</span>
+                <strong class="value">{{ money(balance.amount, balance.currency) }}</strong>
+              </div>
+            }
           }
           @for (total of invested(); track total.currency) {
             <div class="tile">
@@ -149,11 +214,13 @@ const BOOK_LIMIT = 60;
               <strong class="value">{{ money(total.amount, total.currency) }}</strong>
             </div>
           }
-          @for (total of marketValue(); track total.currency) {
-            <div class="tile">
-              <span class="label">Valor mercado {{ total.currency }}</span>
-              <strong class="value">{{ money(total.amount, total.currency) }}</strong>
-            </div>
+          @if (!hero()) {
+            @for (total of marketValue(); track total.currency) {
+              <div class="tile">
+                <span class="label">Valor mercado {{ total.currency }}</span>
+                <strong class="value">{{ money(total.amount, total.currency) }}</strong>
+              </div>
+            }
           }
           @for (total of unrealized(); track total.currency) {
             <div class="tile">
@@ -181,6 +248,39 @@ const BOOK_LIMIT = 60;
             <span class="delta">{{ day(current.firstMovement) }} → {{ day(current.lastMovement) }}</span>
           </div>
         </section>
+
+        @if (hero(); as h) {
+          @if (h.slices.length) {
+            <section class="alloc" aria-label="Distribución del patrimonio">
+              <div class="alloc-head">
+                <h3 class="alloc-title">Distribución del patrimonio</h3>
+                @if (h.concentration; as note) {
+                  <span class="alloc-note">{{ note }}</span>
+                }
+              </div>
+              <div class="alloc-bar">
+                @for (slice of h.slices; track slice.name) {
+                  <span
+                    class="alloc-seg"
+                    [style.flex-grow]="slice.value"
+                    [style.background]="slice.color"
+                    [title]="slice.name + ' ' + slice.label"
+                  ></span>
+                }
+              </div>
+              <ul class="alloc-legend">
+                @for (slice of h.slices; track slice.name) {
+                  <li>
+                    <span class="dot" [style.background]="slice.color"></span>
+                    <strong>{{ slice.name }}</strong>
+                    {{ slice.label }}
+                    <span class="muted">{{ money(slice.value, h.currency) }}</span>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        }
 
         @if (current.flows.length) {
           <!-- What the trades export could not tell you at all. Split by currency because it
@@ -298,10 +398,68 @@ const BOOK_LIMIT = 60;
                wall the shape of the year shows up at a glance — how much green, how much red, and
                which single tile is carrying the result. Sorted by size, best first. -->
           <section aria-label="Posiciones cerradas">
-            <h3 class="section-title">
-              Cerradas
-              <span class="muted">— {{ closed().length }}</span>
-            </h3>
+            <div class="section-head">
+              <h3 class="section-title">
+                Cerradas
+                <span class="muted">· {{ closed().length }}</span>
+              </h3>
+              @if (closedStats(); as stats) {
+                <span class="muted">
+                  {{ stats.wins }} con ganancia · {{ stats.losses }} con pérdida · acierto
+                  {{ stats.rate }} %
+                </span>
+              }
+              <div class="seg" role="group" aria-label="Vista de cerradas">
+                <button
+                  type="button"
+                  [class.on]="closedView() === 'summary'"
+                  (click)="closedView.set('summary')"
+                >Resumen</button>
+                <button
+                  type="button"
+                  [class.on]="closedView() === 'all'"
+                  (click)="closedView.set('all')"
+                >Todas</button>
+              </div>
+            </div>
+
+            @if (closedView() === 'summary' && closedStats(); as stats) {
+              <div class="duo">
+                @for (group of stats.groups; track group.title) {
+                  <div class="rank">
+                    <h4 class="rank-title" [class.up]="group.win" [class.down]="!group.win">
+                      {{ group.title }}
+                    </h4>
+                    @for (item of group.items; track item.holding.isin) {
+                      <div class="rank-row" [attr.title]="item.holding.product ?? item.holding.isin">
+                        <span class="rank-name">
+                          {{ short(item.holding.product, item.holding.isin) }}
+                          <small>
+                            {{ round(item.holding.invested, item.holding.currency) }} →
+                            {{ round(item.holding.proceeds, item.holding.currency) }}
+                          </small>
+                        </span>
+                        <span class="rank-track">
+                          <span
+                            class="rank-fill"
+                            [class.win]="group.win"
+                            [class.loss]="!group.win"
+                            [style.width.%]="item.width"
+                          ></span>
+                        </span>
+                        <span class="rank-value" [class.up]="group.win" [class.down]="!group.win">
+                          {{ signed(item.holding.realizedPnl, item.holding.currency) }}
+                          <small>{{ percent(item.holding.realizedPercent) }}</small>
+                        </span>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+              <button type="button" class="link" (click)="closedView.set('all')">
+                Ver las {{ closed().length }} operaciones
+              </button>
+            } @else {
             <ul class="wall">
               @for (holding of closed(); track holding.isin) {
                 <li
@@ -332,16 +490,41 @@ const BOOK_LIMIT = 60;
                 </li>
               }
             </ul>
+            }
           </section>
         }
 
         <section aria-label="Movimientos">
-          <h3 class="section-title">
-            Movimientos
-            @if (book().length > limit) {
-              <span class="muted">— los {{ limit }} últimos de {{ book().length }}</span>
+          <div class="section-head">
+            <h3 class="section-title">
+              Movimientos
+              <span class="muted">· {{ current.transactions }}</span>
+            </h3>
+            <span class="muted">
+              {{ day(current.firstMovement) }} – {{ day(current.lastMovement) }}
+              @if (filteredBook().length > limit) {
+                · los {{ limit }} últimos
+              }
+            </span>
+          </div>
+          <div class="chips">
+            @for (option of bookFilters; track option.id) {
+              <button
+                type="button"
+                class="chip"
+                [class.on]="bookFilter() === option.id"
+                (click)="bookFilter.set(option.id)"
+              >{{ option.label }}</button>
             }
-          </h3>
+            <label class="group-toggle">
+              <input
+                type="checkbox"
+                [checked]="groupRelated()"
+                (change)="groupRelated.set($any($event.target).checked)"
+              />
+              Agrupar apuntes relacionados
+            </label>
+          </div>
           <table class="grid">
             <thead>
               <tr>
@@ -359,7 +542,10 @@ const BOOK_LIMIT = 60;
                 <tr>
                   <td>{{ day(row.executedAt) }}</td>
                   <td>
-                    <span class="kind" [class.swap]="row.kind === 'CORPORATE_ACTION'">
+                    <span
+                      class="kind"
+                      [class.swap]="row.kind === 'CORPORATE_ACTION'"
+                      [class.income]="row.kind === 'DIVIDEND'"                    >
                       {{ label(row.kind) }}
                     </span>
                   </td>
@@ -376,6 +562,12 @@ const BOOK_LIMIT = 60;
               }
             </tbody>
           </table>
+          @if (hiddenCount() > 0) {
+            <p class="foot">
+              {{ hiddenCount() }} apuntes internos que se compensan están ocultos.
+              <button type="button" class="link" (click)="groupRelated.set(false)">Mostrar</button>
+            </p>
+          }
         </section>
       } @else {
         <p class="empty">
@@ -585,18 +777,148 @@ const BOOK_LIMIT = 60;
 
     .summary {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-      gap: 0.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+      gap: 0.75rem;
     }
 
     .tile {
       display: flex;
       flex-direction: column;
       gap: 0.15rem;
-      padding: 0.5rem 0.65rem;
+      padding: 0.85rem 1rem;
       border: 1px solid var(--border);
-      border-radius: 0.5rem;
-      background: var(--bg-panel);
+      border-radius: var(--radius);
+      background: var(--card);
+    }
+
+    .notice {
+      margin: 0;
+      padding: 0.7rem 0.9rem;
+      border: 1px solid var(--border-control);
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+
+    .hero {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      grid-column: span 2;
+      grid-row: span 2;
+      padding: 1.1rem 1.25rem;
+      border-radius: var(--radius);
+      background: var(--bg-hero);
+      color: var(--on-hero);
+    }
+
+    @media (max-width: 700px) {
+      .hero {
+        grid-column: 1 / -1;
+        grid-row: auto;
+      }
+    }
+
+    .hero-label {
+      font-size: 0.78rem;
+      opacity: 0.8;
+    }
+
+    .hero-value {
+      font-size: 2.4rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    .hero-sub {
+      font-size: 0.78rem;
+      line-height: 1.4;
+      opacity: 0.85;
+    }
+
+    .hero-gain {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      margin-top: 0.6rem;
+      padding-top: 0.8rem;
+      border-top: 1px solid rgb(255 255 255 / 14%);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hero-gain strong {
+      font-size: 1.5rem;
+    }
+
+    .hero .up {
+      color: #7fd4a6;
+    }
+
+    .hero .down {
+      color: #f08a7c;
+    }
+
+    .alloc {
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+    }
+
+    .alloc-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.3rem 1rem;
+      margin-bottom: 0.7rem;
+    }
+
+    .alloc-title {
+      margin: 0;
+      color: var(--text-strong);
+      font-size: 0.95rem;
+    }
+
+    .alloc-note {
+      color: var(--accent);
+      font-size: 0.74rem;
+    }
+
+    .alloc-bar {
+      display: flex;
+      gap: 2px;
+      height: 1.1rem;
+      overflow: hidden;
+      border-radius: 4px;
+    }
+
+    .alloc-seg {
+      flex-basis: 0;
+      min-width: 2px;
+    }
+
+    .alloc-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem 1.1rem;
+      margin: 0.7rem 0 0;
+      padding: 0;
+      list-style: none;
+      color: var(--text-secondary);
+      font-size: 0.74rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 0.6rem;
+      height: 0.6rem;
+      margin-right: 0.25rem;
+      border-radius: 2px;
     }
 
     .label {
@@ -619,25 +941,188 @@ const BOOK_LIMIT = 60;
     }
 
     .section-title {
-      margin: 0.5rem 0 0.35rem;
-      color: var(--text-secondary);
-      font-size: 0.76rem;
+      margin: 0.6rem 0 0.5rem;
+      color: var(--text-strong);
+      font-size: 1rem;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
     }
 
     .muted {
       color: var(--text-dim);
       font-weight: 400;
-      text-transform: none;
-      letter-spacing: 0;
+      font-size: 0.78rem;
+    }
+
+    .section-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.2rem 0.9rem;
+    }
+
+    .seg {
+      display: inline-flex;
+      gap: 0.15rem;
+      margin-left: auto;
+      padding: 0.15rem;
+      border-radius: 0.6rem;
+      background: var(--bg-raised);
+    }
+
+    .seg button,
+    .chip {
+      border: 0;
+      border-radius: 0.45rem;
+      background: transparent;
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+
+    .seg button {
+      padding: 0.25rem 0.8rem;
+    }
+
+    .seg button.on {
+      background: var(--card);
+      color: var(--text-strong);
+      font-weight: 600;
+      box-shadow: 0 1px 2px var(--shadow);
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .chip {
+      padding: 0.3rem 0.85rem;
+      border: 1px solid var(--border-control);
+      border-radius: 999px;
+      background: var(--card);
+    }
+
+    .chip.on {
+      border-color: var(--text-strong);
+      background: var(--text-strong);
+      color: var(--card);
+    }
+
+    .group-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-left: auto;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+
+    .group-toggle input {
+      accent-color: var(--accent);
+    }
+
+    .foot {
+      margin: 0.5rem 0 0;
+      color: var(--text-dim);
+      font-size: 0.74rem;
+    }
+
+    .duo {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .rank {
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+    }
+
+    .rank-title {
+      margin: 0 0 0.6rem;
+      font-size: 0.82rem;
+    }
+
+    .rank-row {
+      display: grid;
+      grid-template-columns: minmax(6rem, 1.1fr) 2fr minmax(6rem, auto);
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.3rem 0;
+    }
+
+    .rank-name {
+      overflow: hidden;
+      color: var(--text-strong);
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .rank-name small,
+    .rank-value small {
+      display: block;
+      color: var(--text-dim);
+      font-size: 0.66rem;
+      font-weight: 400;
+    }
+
+    .rank-value {
+      font-size: 0.82rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .rank-value small {
+      display: inline;
+      margin-left: 0.25rem;
+    }
+
+    .rank-track {
+      height: 0.55rem;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--bg-raised);
+    }
+
+    .rank-fill {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .rank-fill.win {
+      background: var(--chart-up);
+    }
+
+    .rank-fill.loss {
+      background: var(--chart-down);
     }
 
     .grid {
       width: 100%;
-      border-collapse: collapse;
-      font-size: 0.76rem;
+      border: 1px solid var(--border);
+      border-collapse: separate;
+      border-spacing: 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--card);
+      font-size: 0.78rem;
+    }
+
+    .grid tbody tr:last-child td {
+      border-bottom: 0;
     }
 
     .grid th {
@@ -708,18 +1193,18 @@ const BOOK_LIMIT = 60;
          single figure is read. The face is tinted from the same colour, faintly: at full strength
          forty tiles fight each other and nothing stands out. */
       border-left: 3px solid var(--border-control);
-      border-radius: 0.35rem;
-      background: var(--bg-panel);
+      border-radius: 0.6rem;
+      background: var(--card);
     }
 
     .cell.win {
       border-left-color: var(--chart-up);
-      background: color-mix(in srgb, var(--chart-up) 8%, var(--bg-panel));
+      background: color-mix(in srgb, var(--chart-up) 8%, var(--card));
     }
 
     .cell.loss {
       border-left-color: var(--chart-down);
-      background: color-mix(in srgb, var(--chart-down) 8%, var(--bg-panel));
+      background: color-mix(in srgb, var(--chart-down) 8%, var(--card));
     }
 
     /* The name leads the tile now, so it is sized like a heading and not like a caption: at
@@ -859,7 +1344,16 @@ const BOOK_LIMIT = 60;
     }
 
     .kind {
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      background: var(--bg-raised);
+      font-size: 0.7rem;
       white-space: nowrap;
+    }
+
+    .kind.income {
+      background: color-mix(in srgb, var(--chart-up) 14%, var(--card));
+      color: var(--chart-up);
     }
 
     .kind.swap {
@@ -913,7 +1407,78 @@ export class BrokerPanelComponent {
       .filter((holding) => holding.quantity === 0)
       .sort((a, b) => b.realizedPnl - a.realizedPnl),
   );
-  readonly visibleBook = computed(() => this.book().slice(0, BOOK_LIMIT));
+  readonly bookFilters = BOOK_FILTERS;
+  readonly bookFilter = signal<BookFilter['id']>('ALL');
+  readonly groupRelated = signal(true);
+  readonly closedView = signal<'summary' | 'all'>('summary');
+
+  /**
+   * Cash-only lines that undo each other the same day in the same currency (a deposit and the
+   * transfer that books it, a charge and its refund). They are bookkeeping, not events: hiding
+   * them is a display choice, and the totals above never read this list.
+   */
+  private readonly offsetting = computed(() => {
+    const waiting = new Map<string, string[]>();
+    const hidden = new Set<string>();
+    for (const row of this.book()) {
+      const cents = Math.round(row.amount * 100);
+      if (row.isin || cents === 0 || !OFFSETTABLE.has(row.kind)) {
+        continue;
+      }
+      const day = row.executedAt.slice(0, 10);
+      const mate = waiting.get(`${day}|${row.currency}|${-cents}`)?.pop();
+      if (mate) {
+        hidden.add(mate);
+        hidden.add(row.id);
+        continue;
+      }
+      const key = `${day}|${row.currency}|${cents}`;
+      waiting.set(key, [...(waiting.get(key) ?? []), row.id]);
+    }
+    return hidden;
+  });
+
+  private readonly bookByKind = computed(() => {
+    const kinds = BOOK_FILTERS.find((f) => f.id === this.bookFilter())?.kinds;
+    return kinds ? this.book().filter((row) => kinds.includes(row.kind)) : this.book();
+  });
+
+  readonly filteredBook = computed(() =>
+    this.groupRelated()
+      ? this.bookByKind().filter((row) => !this.offsetting().has(row.id))
+      : this.bookByKind(),
+  );
+  readonly hiddenCount = computed(() => this.bookByKind().length - this.filteredBook().length);
+  readonly visibleBook = computed(() => this.filteredBook().slice(0, BOOK_LIMIT));
+
+  /** Wins, losses and the two ranked lists of the closed summary. */
+  readonly closedStats = computed(() => {
+    const all = this.closed();
+    if (!all.length) {
+      return null;
+    }
+    const max = Math.max(...all.map((h) => Math.abs(h.realizedPnl)), 1);
+    const row = (holding: Holding) => ({
+      holding,
+      width: Math.max((Math.abs(holding.realizedPnl) / max) * 100, 2),
+    });
+    const wins = all.filter((h) => h.realizedPnl > 0);
+    const losses = all.filter((h) => h.realizedPnl < 0);
+    return {
+      wins: wins.length,
+      losses: losses.length,
+      rate: Math.round((wins.length / all.length) * 100),
+      // `closed` is sorted best first, so the worst are read off the tail, worst of all first.
+      groups: [
+        { title: 'Mejores operaciones', win: true, items: wins.slice(0, RANK_SIZE).map(row) },
+        {
+          title: 'Peores operaciones',
+          win: false,
+          items: losses.slice(-RANK_SIZE).reverse().map(row),
+        },
+      ].filter((group) => group.items.length),
+    };
+  });
 
   /**
    * Invested and realised, per currency and never added across them.
@@ -967,6 +1532,101 @@ export class BrokerPanelComponent {
 
   readonly marketValue = computed(() => this.marketTotalsBy((h) => h.marketValue));
   readonly unrealized = computed(() => this.marketTotalsBy((h) => h.unrealizedPnl));
+
+  /** Whole days since the newest imported row, once it is old enough to be worth saying. */
+  readonly staleDays = computed(() => {
+    const last = this.active()?.lastMovement;
+    if (!last) {
+      return 0;
+    }
+    const days = Math.floor((Date.now() - new Date(last).getTime()) / 86_400_000);
+    return days > STALE_AFTER_DAYS ? days : 0;
+  });
+
+  /**
+   * The headline: positions plus cash in the one currency the account is funded in, set against
+   * what was paid in. Null when the open positions are priced in more than one currency, since a
+   * single total would then need a rate this screen does not have.
+   *
+   * <p>Cash in any other currency is not added, only mentioned: a few cents of dollars left over
+   * from a fill is not worth inventing a rate for.
+   */
+  readonly hero = computed(() => {
+    const account = this.active();
+    const markets = this.marketValue();
+    if (!account || markets.length > 1) {
+      return null;
+    }
+    const currency = markets[0]?.currency ?? account.balances[0]?.currency;
+    if (!currency) {
+      return null;
+    }
+    const positions = markets[0]?.amount ?? 0;
+    const cash = account.balances.find((b) => b.currency === currency)?.amount ?? 0;
+    const wealth = positions + cash;
+    if (wealth <= 0) {
+      return null;
+    }
+
+    const otherCash = account.balances
+      .filter((b) => b.currency !== currency && b.amount !== 0)
+      .map((b) => `${formatMoney(b.amount, b.currency)}`)
+      .join(', ');
+
+    const flow = (kind: Flow['kind']) =>
+      Math.abs(
+        account.flows.find((f) => f.kind === kind && f.currency === currency)?.amount ?? 0,
+      );
+    const deposits = flow('DEPOSIT');
+    const withdrawals = flow('WITHDRAWAL');
+    const net = deposits - withdrawals;
+    const gain = deposits > 0 ? wealth - net : null;
+
+    const slices = this.open()
+      .filter((h) => h.marketValue !== null && h.marketValue > 0)
+      .map((h) => ({
+        name: h.symbol ?? this.short(h.product, h.isin),
+        value: h.marketValue as number,
+      }))
+      .concat(cash > 0 ? [{ name: 'Efectivo', value: cash }] : [])
+      .sort((a, b) => b.value - a.value)
+      .map((slice, index) => ({
+        ...slice,
+        color: slice.name === 'Efectivo' ? CASH_COLOR : SLICE_COLORS[index % SLICE_COLORS.length],
+        label: `${((slice.value / wealth) * 100).toLocaleString('es-ES', {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })} %`,
+      }));
+
+    const top = slices.filter((s) => s.name !== 'Efectivo').slice(0, 2);
+    const topShare = top.reduce((sum, s) => sum + s.value, 0) / wealth;
+    const concentration =
+      top.length === 2 && topShare > 0.5
+        ? `${top[0].name} y ${top[1].name} suman ${(topShare * 100).toLocaleString('es-ES', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          })} %: una caída del 10 % en ambas restaría unos ${formatRound(
+            topShare * wealth * 0.1,
+            currency,
+          )}`
+        : null;
+
+    return {
+      currency,
+      wealth,
+      positions,
+      cash,
+      otherCash: otherCash ? ` (y ${otherCash})` : '',
+      deposits,
+      withdrawals,
+      net,
+      gain,
+      gainPercent: gain !== null && net > 0 ? (gain / net) * 100 : null,
+      slices,
+      concentration,
+    };
+  });
 
   /** Open positions the user has not named yet — the ones a ticker would immediately fix. */
   readonly unmapped = computed(() =>

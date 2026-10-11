@@ -379,7 +379,7 @@ function storedParams(): StrategyParams {
       width: 100%;
       padding: 0.3rem 0.45rem;
       border: 0;
-      border-radius: 4px;
+      border-radius: 8px;
       background: transparent;
       color: var(--text-secondary);
       font: inherit;
@@ -427,7 +427,7 @@ function storedParams(): StrategyParams {
       min-width: 1.9rem;
       padding: 0.3rem 0.4rem;
       border: 0;
-      border-radius: 4px;
+      border-radius: 8px;
       background: transparent;
       color: var(--text-secondary);
       font: inherit;
@@ -501,7 +501,7 @@ function storedParams(): StrategyParams {
       min-width: 0;
       padding: 0.2rem 0.4rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
+      border-radius: 8px;
       background: var(--bg-app);
       color: var(--text-input);
       font: inherit;
@@ -513,7 +513,7 @@ function storedParams(): StrategyParams {
       min-width: 0;
       padding: 0.25rem 0.6rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
+      border-radius: 8px;
       background: var(--bg-raised);
       color: var(--text-secondary);
       font: inherit;
@@ -605,7 +605,7 @@ function storedParams(): StrategyParams {
       min-width: 0;
       padding: 0.2rem 0.3rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
+      border-radius: 8px;
       background: var(--bg-app);
       color: var(--text-input);
       font: inherit;
@@ -634,7 +634,7 @@ function storedParams(): StrategyParams {
       gap: 0.1rem;
       padding: 0.1rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
+      border-radius: 8px;
       background: var(--bg-app);
     }
 

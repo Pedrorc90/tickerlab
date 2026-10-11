@@ -17,6 +17,7 @@ import {
   FILTER_GROUPS,
   FilterGroup,
   PAGE_SIZE,
+  FILTER_VALUE,
   PRESETS,
   Preset,
   RANGE_SELECTS,
@@ -186,8 +187,24 @@ function optionIndex(id: string, label: unknown): number {
     // Which of the two shapes the panel is wearing, so the styles below can follow the
     // template's own @if instead of guessing at a width.
     '[class.narrow]': 'narrow()',
+    '[class.docked]': 'docked()',
   },
   template: `
+    <div class="presets">
+      <h2 class="title">Screener</h2>
+      @for (preset of presets; track preset.name) {
+        <button
+          type="button"
+          class="preset"
+          [class.on]="preset.name === activePreset()"
+          [title]="preset.hint"
+          (click)="applyPreset(preset)"
+        >
+          {{ preset.name }}
+        </button>
+      }
+    </div>
+
     <header class="filters">
       <input
         type="search"
@@ -215,19 +232,6 @@ function optionIndex(id: string, label: unknown): number {
           <option [value]="option" [selected]="option === exchange()">{{ option }}</option>
         }
       </select>
-
-      <button type="button" class="panel-toggle" [class.on]="panelOpen()" (click)="togglePanel()">
-        Filtros {{ panelOpen() ? '▴' : '▾' }}
-        @if (activeCount()) {
-          <span class="badge">{{ activeCount() }}</span>
-        }
-      </button>
-
-      @if (filtered()) {
-        <button type="button" class="clear" (click)="clearFilters()" title="Quitar todos los filtros">
-          Limpiar
-        </button>
-      }
 
       <span class="count">
         @if (total() > 0) {
@@ -265,23 +269,27 @@ function optionIndex(id: string, label: unknown): number {
       </button>
     </header>
 
+    <!-- What is filtering, one tag per dropdown that is off its "no filter" entry. The dropdowns
+         themselves stay behind the add button: the tags are the answer, the panel is the form. -->
+    <div class="tags">
+      @for (tag of tags(); track tag.id) {
+        <span class="tag">
+          {{ tag.text }}
+          <button type="button" [attr.aria-label]="'Quitar ' + tag.text" (click)="pick(tag.id, 0)">
+            ×
+          </button>
+        </span>
+      }
+      <button type="button" class="tag add" [class.on]="panelOpen()" (click)="togglePanel()">
+        + Añadir filtro
+      </button>
+      @if (filtered()) {
+        <button type="button" class="clear" (click)="clearFilters()">Limpiar todo</button>
+      }
+    </div>
+
     @if (panelOpen()) {
       <section class="filter-panel">
-        <div class="filter-group">
-          <span class="group-name">Escaneos</span>
-          @for (preset of presets; track preset.name) {
-            <button
-              type="button"
-              class="preset"
-              [class.on]="preset.name === activePreset()"
-              [title]="preset.hint"
-              (click)="applyPreset(preset)"
-            >
-              {{ preset.name }}
-            </button>
-          }
-        </div>
-
         @for (group of groups; track group) {
           <div class="filter-group">
             <span class="group-name">{{ group }}</span>
@@ -543,6 +551,7 @@ function optionIndex(id: string, label: unknown): number {
                   {{ percent(row.change52w) }}
                 </td>
                 <td class="col-score numeric" [class.up]="(row.score ?? 0) >= rsLeader">
+                  <span class="meter"><i [style.width.%]="row.score ?? 0"></i></span>
                   {{ row.score ?? '—' }}
                 </td>
                 <!-- Highlighted, not coloured up/down: a rating has no sign, only a bar. -->
@@ -661,8 +670,7 @@ function optionIndex(id: string, label: unknown): number {
       flex-wrap: wrap;
       gap: 0.5rem;
       padding: 0.6rem 0.9rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-panel);
+      background: var(--bg-app);
     }
 
     .filter-text {
@@ -671,8 +679,8 @@ function optionIndex(id: string, label: unknown): number {
       max-width: 22rem;
       padding: 0.35rem 0.5rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
-      background: var(--bg-app);
+      border-radius: 10px;
+      background: var(--card);
       color: var(--text);
       font: inherit;
       font-size: 0.82rem;
@@ -687,60 +695,37 @@ function optionIndex(id: string, label: unknown): number {
     .filter-range {
       padding: 0.35rem 0.5rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
+      border-radius: 10px;
       background: var(--bg-control);
       color: var(--text-secondary);
       font: inherit;
       font-size: 0.78rem;
     }
 
-    /* The dropdown and its direction read as one control, so they stay welded when the bar wraps. */
-    .sort {
+    .presets {
       display: flex;
-      align-items: stretch;
-      gap: 0.2rem;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      padding: 0.7rem 0.9rem 0;
+      background: var(--bg-app);
     }
 
-    .sort-dir {
-      padding: 0 0.45rem;
-      border: 1px solid var(--border-control);
-      border-radius: 4px;
-      background: var(--bg-control);
-      color: var(--accent);
-      font: inherit;
-      font-size: 0.72rem;
-      cursor: pointer;
+    .title {
+      margin: 0 0.5rem 0 0;
+      color: var(--text-strong);
+      font-size: 1.25rem;
     }
 
-    .sort-dir:hover {
-      border-color: var(--accent);
-    }
-
-    .panel-toggle {
+    /* A switch, not a link: one scan is on at a time, and the dark pill says which. */
+    .preset,
+    .tag {
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-      padding: 0.35rem 0.6rem;
+      padding: 0.3rem 0.8rem;
       border: 1px solid var(--border-control);
-      border-radius: 6px;
-      background: var(--bg-control);
-      color: var(--text-secondary);
-      font: inherit;
-      font-size: 0.78rem;
-      cursor: pointer;
-    }
-
-    .panel-toggle:hover,
-    .panel-toggle.on {
-      border-color: var(--accent);
-      color: var(--text-strong);
-    }
-
-    /* Shaped like the panel toggle because it is the same kind of control: a switch, not a link. */
-    .preset {
-      padding: 0.35rem 0.6rem;
-      border: 1px solid var(--border-control);
-      border-radius: 6px;
+      border-radius: 999px;
       background: var(--bg-control);
       color: var(--text-secondary);
       font: inherit;
@@ -749,9 +734,74 @@ function optionIndex(id: string, label: unknown): number {
     }
 
     .preset:hover,
-    .preset.on {
+    .tag.add:hover {
       border-color: var(--accent);
       color: var(--text-strong);
+    }
+
+    .preset.on {
+      border-color: var(--text-strong);
+      background: var(--text-strong);
+      color: var(--bg-panel);
+      font-weight: 600;
+    }
+
+    .tags {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      padding: 0 0.9rem 0.6rem;
+      background: var(--bg-app);
+    }
+
+    .tag {
+      padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+      border-color: transparent;
+      background: var(--accent-soft);
+      color: var(--text-strong);
+      cursor: default;
+    }
+
+    .tag button {
+      border: 0;
+      background: transparent;
+      color: var(--text-dim);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .tag button:hover {
+      color: var(--chart-down);
+    }
+
+    .tag.add {
+      padding-right: 0.8rem;
+      border: 1px dashed var(--border-control);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .tag.add.on {
+      border-color: var(--accent);
+    }
+
+    .meter {
+      display: inline-block;
+      width: 3rem;
+      height: 0.3rem;
+      margin-right: 0.5rem;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--bg-raised);
+      vertical-align: middle;
+    }
+
+    .meter i {
+      display: block;
+      height: 100%;
+      background: var(--accent);
     }
 
     .badge {
@@ -768,9 +818,11 @@ function optionIndex(id: string, label: unknown): number {
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
-      padding: 0.6rem 0.9rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-raised);
+      margin: 0 0.9rem 0.6rem;
+      padding: 0.7rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
     }
 
     .filter-group {
@@ -850,7 +902,7 @@ function optionIndex(id: string, label: unknown): number {
       gap: 0.35rem;
       padding: 0.35rem 0.6rem;
       border: 1px solid var(--accent);
-      border-radius: 6px;
+      border-radius: 10px;
       background: transparent;
       color: var(--accent);
       font: inherit;
@@ -871,7 +923,7 @@ function optionIndex(id: string, label: unknown): number {
     .refresh {
       padding: 0.35rem 0.6rem;
       border: 1px dashed var(--border-control);
-      border-radius: 6px;
+      border-radius: 10px;
       background: transparent;
       color: var(--accent);
       font: inherit;
@@ -890,8 +942,9 @@ function optionIndex(id: string, label: unknown): number {
     }
 
     .notice {
-      margin: 0;
+      margin: 0 0.9rem 0.6rem;
       padding: 0.4rem 0.9rem;
+      border-radius: 10px;
       background: var(--accent-soft);
       color: var(--text-secondary);
       font-size: 0.74rem;
@@ -907,12 +960,20 @@ function optionIndex(id: string, label: unknown): number {
     .body {
       display: grid;
       grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1fr);
       flex: 1;
       min-height: 0;
     }
 
-    :host(.narrow) .body {
-      grid-template-columns: 15% 1fr;
+    :host(.docked) .body {
+      grid-template-columns: minmax(0, 1fr) 26rem;
+    }
+
+    /* Room to spare: the list keeps a third, and the card gets the rest to draw in. */
+    @media (min-width: 1500px) {
+      :host(.docked) .body {
+        grid-template-columns: minmax(24rem, 35%) minmax(0, 1fr);
+      }
     }
 
     .list {
@@ -931,10 +992,24 @@ function optionIndex(id: string, label: unknown): number {
       min-height: 0;
       width: 100%;
       max-width: var(--table-max-width);
-      margin: 1rem auto 0;
+      margin: 0.25rem auto 0;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius);
+      background: var(--card);
       overflow: auto;
+    }
+
+    /* Docked, the list and the card are two cards on one row: same gap on every side. */
+    :host(.docked) .table-wrap {
+      width: auto;
+      max-width: none;
+      margin: 0.25rem 1rem 0.75rem 0.9rem;
+    }
+
+    /* The card beside the list already carries these, so the table keeps only what ranks the
+       rows: half the columns, and nothing to scroll sideways. */
+    :host(.docked) :is(.col-name, .col-exchange, .col-volume, .col-premarketVolume, .col-marketCap, .col-per, .col-eps, .col-change52w) {
+      display: none;
     }
 
     /* Beside a chart there is no width to cap and no space to leave empty: the pane is the
@@ -969,7 +1044,7 @@ function optionIndex(id: string, label: unknown): number {
     .sort-dir {
       padding: 0 0.5rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
+      border-radius: 10px;
       background: var(--bg-control);
       color: var(--accent);
       font: inherit;
@@ -1266,7 +1341,7 @@ function optionIndex(id: string, label: unknown): number {
     .add {
       padding: 0 0.32rem;
       border: 1px solid transparent;
-      border-radius: 4px;
+      border-radius: 6px;
       background: none;
       color: var(--text-dim);
       font-size: 0.95rem;
@@ -1296,7 +1371,7 @@ function optionIndex(id: string, label: unknown): number {
       gap: 0.1rem;
       padding: 0.35rem;
       border: 1px solid var(--border-control);
-      border-radius: 6px;
+      border-radius: 10px;
       background: var(--bg-raised);
       box-shadow: 0 6px 20px var(--shadow);
     }
@@ -1317,7 +1392,7 @@ function optionIndex(id: string, label: unknown): number {
       gap: 0.4rem;
       padding: 0.35rem 0.4rem;
       border: 0;
-      border-radius: 4px;
+      border-radius: 6px;
       background: none;
       color: var(--text-secondary);
       font-size: 0.78rem;
@@ -1343,7 +1418,7 @@ function optionIndex(id: string, label: unknown): number {
     .add-option.new {
       margin-top: 0.15rem;
       border-top: 1px solid var(--border);
-      border-radius: 0 0 4px 4px;
+      border-radius: 0 0 6px 6px;
       color: var(--text-dim);
     }
 
@@ -1367,7 +1442,7 @@ function optionIndex(id: string, label: unknown): number {
       flex: 1;
       padding: 0.25rem 0.4rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
+      border-radius: 6px;
       background: var(--bg-panel);
       color: var(--text);
       font-size: 0.76rem;
@@ -1375,7 +1450,7 @@ function optionIndex(id: string, label: unknown): number {
 
     .add-form .icon {
       border: 0;
-      border-radius: 4px;
+      border-radius: 6px;
       background: none;
       color: var(--accent);
       cursor: pointer;
@@ -1418,7 +1493,7 @@ function optionIndex(id: string, label: unknown): number {
 
       /* No chart beside the list at this width — the picked row covers the screen instead, so
          the list keeps all of it and does not shrink to a strip behind the detail. */
-      :host(.narrow) .body {
+      :host(.docked) .body {
         grid-template-columns: 1fr;
       }
 
@@ -1564,9 +1639,10 @@ export class ScreenerPanelComponent implements OnDestroy {
    * that same quarter without anything beside it — twelve columns never fit there either, so
    * it reads the cards whether or not a row is open.
    */
-  protected readonly narrow = computed(
-    () => this.selectedSymbol() !== null || this.viewport.isMobile(),
-  );
+  protected readonly narrow = computed(() => this.viewport.isMobile());
+
+  /** A row is open in the card beside the list. */
+  protected readonly docked = computed(() => this.selectedSymbol() !== null);
 
   /** What the backend is being asked for right now. */
   protected readonly filters = computed(() =>
@@ -1580,7 +1656,32 @@ export class ScreenerPanelComponent implements OnDestroy {
     this.crossLimit() === null ? COLUMNS.filter(({ field }) => field !== 'crossDays') : COLUMNS,
   );
 
-  /** How many dropdowns are off their "no filter" entry. Shown on the Filtros button. */
+  /** One tag per dropdown that is off its "no filter" entry, named by field and tier. */
+  protected readonly tags = computed(() =>
+    RANGE_SELECTS.flatMap((select) => {
+      const option = select.options[this.picks()[select.id] ?? 0];
+      return this.picks()[select.id] > 0 && option
+        ? [
+            {
+              id: select.id,
+              label: select.label,
+              tier: option.label,
+              text: `${select.label} ${option.label}`,
+            },
+          ]
+        : [];
+    }),
+  );
+
+  /** Each active filter with what the row has on it, for the detail's "why it appears" list. */
+  why(row: ScreenerSymbol) {
+    return this.tags().map((tag) => ({
+      ...tag,
+      value: tag.id === 'smaCross' ? this.crossLabel(row) : (FILTER_VALUE[tag.id]?.(row) ?? '—'),
+    }));
+  }
+
+  /** How many dropdowns are off their "no filter" entry. */
   protected readonly activeCount = computed(
     () => Object.values(this.picks()).filter((index) => index > 0).length,
   );

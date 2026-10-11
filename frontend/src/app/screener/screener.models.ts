@@ -578,6 +578,40 @@ export function crossWindow(picks: Readonly<Record<string, number>>): number | n
  * rather than by its index. Adding a tier reorders a list — it already happened to the SMA 50
  * one — and an index would then quietly point a preset at a filter nobody chose.
  */
+/**
+ * What each dropdown looked at on a row, written the way the table writes it. The cross filter
+ * is not here: its value is worked out client-side from the candles, so the panel supplies it.
+ */
+export const FILTER_VALUE: Readonly<Record<string, (row: ScreenerSymbol) => string>> = {
+  marketCap: (row) => formatCompact(row.marketCap),
+  price: (row) => formatPrice(row.price),
+  volume: (row) => formatCompact(row.volume),
+  avgVolume3m: (row) => formatCompact(row.avgVolume3m),
+  sharesOutstanding: (row) => formatCompact(row.sharesOutstanding),
+  per: (row) => formatRatio(row.per),
+  priceToBook: (row) => formatRatio(row.priceToBook),
+  dividendYield: (row) => formatPercent(row.dividendYield),
+  forwardPer: (row) => formatRatio(row.forwardPer),
+  eps: (row) => formatRatio(row.eps),
+  analystRating: (row) => formatRatio(row.analystRating),
+  score: (row) => String(row.score ?? '—'),
+  rsRating: (row) => String(row.rsRating ?? '—'),
+  change: (row) => formatPercent(row.changePercent),
+  relVolume: (row) => formatMultiple(relativeVolume(row)),
+  gap: (row) => formatPercent(row.gapPercent),
+  premarketVolume: (row) => formatCompact(row.premarketVolume),
+  change52w: (row) => formatPercent(row.change52w),
+  fromHigh52w: (row) => formatPercent(row.fromHigh52w),
+  fromLow52w: (row) => formatPercent(row.fromLow52w),
+  vsSma50: (row) => formatPercent(row.vsSma50),
+  vsSma200: (row) => formatPercent(row.vsSma200),
+  // Both quotes are read against the price, so the two averages' own gap falls out of them.
+  smaGap: (row) =>
+    row.vsSma50 === null || row.vsSma200 === null
+      ? '—'
+      : formatPercent(((1 + row.vsSma200 / 100) / (1 + row.vsSma50 / 100) - 1) * 100),
+};
+
 export interface Preset {
   readonly name: string;
   /** What the screen is after, shown on hover. */

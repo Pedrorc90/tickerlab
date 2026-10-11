@@ -26,8 +26,14 @@
 }
 
 .brand-mark {
-  color: var(--accent);
-  font-size: 1.15rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: none;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .brand-name {
@@ -47,7 +53,21 @@ app-ticker-search {
   padding: 0.2rem;
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
+}
+
+/* Above the chart, left to right: how it is cut, then how it is drawn. */
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.chart-toolbar .timeframes {
+  margin-left: 0;
 }
 
 /* Rides next to the timeframes rather than claiming its own auto margin: both answer the
@@ -79,7 +99,7 @@ app-ticker-search {
   min-width: 2rem;
   padding: 0.35rem 0.5rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
@@ -104,16 +124,12 @@ app-ticker-search {
   display: flex;
   gap: 0.25rem;
   margin-left: auto;
-  padding: 0.2rem;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: 6px;
 }
 
 .view {
-  padding: 0.35rem 0.85rem;
+  padding: 0.4rem 0.95rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: 999px;
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
@@ -128,6 +144,7 @@ app-ticker-search {
 .view.active {
   background: var(--accent);
   color: var(--on-accent);
+  font-weight: 600;
 }
 
 /* The screener is the only child under the topbar, so it takes the two remaining rows of
@@ -148,36 +165,40 @@ app-strategies-panel {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0.55rem 1rem;
-  background: var(--bg-app);
+  gap: 0.4rem 0.9rem;
+  padding: 0.7rem 1rem;
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   font-size: 0.85rem;
   color: var(--text-secondary);
 }
 
 .quote-symbol {
-  font-size: 1rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--text);
 }
 
 .quote-price {
-  font-size: 1rem;
+  font-size: 1.7rem;
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
 .quote-change {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
   font-variant-numeric: tabular-nums;
 }
 
 .quote-change.up {
+  background: color-mix(in srgb, var(--chart-up) 14%, transparent);
   color: var(--chart-up);
 }
 
 .quote-change.down {
+  background: color-mix(in srgb, var(--chart-down) 14%, transparent);
   color: var(--chart-down);
 }
 
@@ -285,9 +306,30 @@ app-price-chart {
 /* Docked: the indicators are a bar over the chart, so the rail keeps only the strategy half.
    The rail copy of the legend and its tab stay for the phone sheet. */
 @media (min-width: 768px) {
+  /* Three cards on the page: the rail, the chart and the lists, with the page showing between. */
+  .stage {
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .rail,
+  .workspace > .chart-area {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .rail {
+    background: var(--card);
+  }
+
+  .rail-tabs {
+    border-right: 0;
+  }
+
   .workspace > .chart-area {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
   }
 
   .rail > app-indicator-legend,
@@ -311,54 +353,56 @@ app-price-chart {
   }
 }
 
-/* ---- Screener detail: the picked row, drawn beside the list ---- */
+/* ---- Screener detail: the picked row, a card docked beside the list ---- */
 
-/* The right-hand three quarters, full height. Only a rule separates it from the list —
-   a rounded card floating in its own pane would draw a border the layout already has. */
 .detail {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--border);
-  background: var(--bg-panel);
+  margin: 0.25rem 0.75rem 0.75rem 0;
+  padding: 0.8rem 1rem;
+  gap: 0.6rem;
+  align-self: start;
+  max-height: calc(100% - 1rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
   overflow-y: auto;
 }
 
 .detail-head {
   display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.7rem;
-  padding: 0.7rem 0.9rem;
-  border-bottom: 1px solid var(--border);
+  gap: 0.5rem;
 }
 
 .detail-symbol {
   color: var(--text-strong);
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-size: 1.15rem;
+  font-weight: 700;
 }
 
 .detail-name {
-  color: var(--text-secondary);
-  /* The long ones give their room to the price rather than pushing it off the row. */
+  min-width: 0;
   overflow: hidden;
+  color: var(--text-dim);
+  font-size: 0.78rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.detail-exchange {
-  color: var(--text-dim);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.detail-quote {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
 }
 
 .detail-price {
-  margin-left: auto;
   color: var(--text-strong);
-  font-size: 1.05rem;
+  font-size: 1.5rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -385,11 +429,36 @@ app-price-chart {
   color: var(--chart-down);
 }
 
-/* Keeps the auto margin it inherits, so it lands on the right with the two buttons it shares
-   the row with. A size down from the top bar's copy: this is a block inside a page, not the
-   bar over it, and at full size it outweighs the ticker it belongs to. */
+.detail-action,
+.detail-close {
+  flex: none;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.detail-action {
+  margin-left: auto;
+}
+
+.detail-close {
+  border-color: var(--border-control);
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.detail-close:hover {
+  color: var(--text-strong);
+}
+
 .detail-timeframes {
-  align-self: center;
+  margin-left: auto;
   padding: 0.15rem;
 }
 
@@ -399,62 +468,113 @@ app-price-chart {
   font-size: 0.78rem;
 }
 
-.detail-action,
-.detail-close {
+/* The chart is a glance here: a fixed strip under the quote. The full one is one click away. */
+.detail-chart {
   flex: none;
-  align-self: center;
-  padding: 0.25rem 0.6rem;
-  border: 1px solid var(--border-control);
-  border-radius: 999px;
-  background: var(--bg-control);
-  color: var(--text-dim);
-  font: inherit;
+  height: 7.5rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.detail-chart .chart-area {
+  height: 100%;
+}
+
+/* Wide window: the chart takes the left column on its own, and the two lists stack on the right. */
+@media (min-width: 1500px) {
+  .detail {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr);
+    align-content: start;
+    gap: 0.7rem 1.5rem;
+  }
+
+  .detail-head,
+  .detail-quote {
+    grid-column: 1 / -1;
+  }
+
+  .detail-chart {
+    grid-column: 1;
+    grid-row: 3 / span 2;
+    height: auto;
+    min-height: 26rem;
+  }
+
+  .detail-why {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .detail-facts {
+    grid-column: 2;
+    grid-row: 4;
+  }
+}
+
+.detail-h {
+  margin: 0 0 0.25rem;
+  color: var(--text-label);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.why {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.why li {
+  display: grid;
+  grid-template-columns: 1.2rem 1fr auto;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border);
   font-size: 0.78rem;
-  line-height: 1.4;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
 }
 
-.detail-action:hover,
-.detail-close:hover {
-  background: var(--bg-control-hover);
+.why li::before {
+  content: '✓';
+  color: var(--chart-up);
+}
+
+.why em {
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  font-style: normal;
+}
+
+.why strong {
   color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Fits as many as the width allows: 15 metrics wrap instead of scrolling sideways. */
 .metrics {
   display: grid;
   flex: none;
-  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-  gap: 0.5rem 1rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem 0.8rem;
   margin: 0;
-  padding: 0.75rem 0.9rem;
-  border-bottom: 1px solid var(--border);
 }
 
 .metric dt {
   color: var(--text-label);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.66rem;
 }
 
 .metric dd {
   margin: 0.1rem 0 0;
-  color: var(--text-secondary);
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-
-/* Legend and chart, no watchlist column: the plus button in the list already covers that.
-   Takes whatever the header and the metrics leave, down to 24rem — below that the pane
-   scrolls rather than squeezing the candles into a strip. */
-.detail-chart {
-  display: grid;
-  grid-template-columns: 10.8rem 1fr;
-  flex: 1 0 24rem;
-  min-height: 0;
 }
 
 /* ---- Phone sheets: the two docked panels, when there is no room to dock them ---- */
@@ -514,10 +634,6 @@ app-price-chart {
 
   .stage.wide-rail {
     grid-template-columns: 12rem 1fr 12rem;
-  }
-
-  .detail-chart {
-    grid-template-columns: 9.5rem 1fr;
   }
 }
 
@@ -586,6 +702,11 @@ app-price-chart {
     padding: 0.45rem 0.6rem;
   }
 
+  .quote-symbol,
+  .quote-price {
+    font-size: 1.15rem;
+  }
+
   /* The name is the one thing here already spelled out by the ticker beside it. */
   .quote-name {
     display: none;
@@ -617,6 +738,12 @@ app-price-chart {
   .workspace > app-watchlist-panel {
     grid-column: auto;
     grid-row: auto;
+  }
+
+  /* The toolbar rides over the chart; the indicator bar is hidden down here. */
+  .workspace > .chart-area {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .workspace {
@@ -717,39 +844,10 @@ app-price-chart {
     position: fixed;
     z-index: 30;
     inset: 0;
-    border-left: 0;
-  }
-
-  .detail-head {
-    gap: 0.4rem 0.6rem;
-    padding: 0.6rem;
-  }
-
-  .detail-name {
-    display: none;
-  }
-
-  .detail-timeframes {
-    order: 1;
-    margin-left: 0;
-  }
-
-  .detail-action,
-  .detail-close {
-    order: 2;
-  }
-
-  .metrics {
-    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
-    gap: 0.4rem 0.7rem;
-    padding: 0.6rem;
-  }
-
-  /* Legend above the candles rather than beside them; the strip itself scrolls sideways. */
-  .detail-chart {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    flex: 1 0 20rem;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
   }
 }
 

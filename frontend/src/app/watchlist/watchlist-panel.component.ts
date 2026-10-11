@@ -109,8 +109,10 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       display: flex;
       flex-direction: column;
       min-height: 0;
-      background: var(--bg-panel);
-      border-left: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
     }
 
     .panel-head {
@@ -195,7 +197,7 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       min-width: 0;
       padding: 0.3rem 0.4rem;
       border: 1px solid var(--border-control);
-      border-radius: 4px;
+      border-radius: 8px;
       background: var(--bg-app);
       color: var(--text);
       font: inherit;
@@ -219,7 +221,7 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
       margin: 0.5rem;
       padding: 0.4rem;
       border: 1px dashed var(--border-control);
-      border-radius: 6px;
+      border-radius: 8px;
       background: transparent;
       color: var(--accent);
       font: inherit;
@@ -249,7 +251,7 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
     .entry-row {
       display: flex;
       align-items: center;
-      border-radius: 4px;
+      border-radius: 8px;
     }
 
     .entry-row:hover {
@@ -315,7 +317,8 @@ const ACTIVE_LIST_KEY = 'tickerlab.activeWatchlist';
     @media (max-width: 767px) {
       :host(.pane) {
         display: flex;
-        border-left: 0;
+        border: 0;
+        border-radius: 0;
       }
     }
   `,

@@ -251,6 +251,8 @@ export class App {
    * the rail is up: the signals and the lines it draws belong to the chart, not to the tab.
    */
   protected readonly strategies = viewChild(StrategiesPanelComponent);
+  /** Read by the screener detail for the "why it appears" list: the filters live in the panel. */
+  protected readonly screener = viewChild(ScreenerPanelComponent);
   /** Everything on for a first visit; after that, however the legend was left. */
   protected readonly visibleIndicators = signal<ReadonlySet<Indicator>>(storedIndicators());
   /** Textbook periods on a first visit; after that, whatever the popovers were left on. */

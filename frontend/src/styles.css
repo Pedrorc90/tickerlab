@@ -26,31 +26,42 @@
   --accent-soft: rgb(76 125 255 / 14%);
   --danger-soft: rgb(239 83 80 / 12%);
   --shadow: rgb(0 0 0 / 45%);
+
+  --card: #171b26;
+  --bg-hero: #1c2030;
+  --on-hero: #fff;
+  --radius: 12px;
 }
 
-/* Ink on paper: the only light theme, so the chart has to follow or it turns into a hole. */
+/* Warm paper: cream page, white cards, terracotta accent. The only light theme, so the chart
+   has to follow or it turns into a hole. */
 :root[data-theme='paper'] {
   color-scheme: light;
 
-  --bg-app: #f4efe4;
-  --bg-panel: #ece5d6;
-  --bg-raised: #e3dbc9;
-  --bg-control: #f8f4ea;
-  --bg-control-hover: #ded4bf;
-  --border: #d5cab2;
-  --border-control: #c9bda3;
-  --border-focus: #a8967a;
-  --text: #2e2a24;
-  --text-strong: #14120f;
-  --text-secondary: #4f483d;
-  --text-label: #6a6152;
-  --text-input: #2e2a24;
-  --text-dim: #8a8071;
-  --accent: #9a5b2d;
-  --on-accent: #fdf9f0;
-  --accent-soft: rgb(154 91 45 / 14%);
+  --bg-app: #f1ede6;
+  --bg-panel: #faf7f1;
+  --bg-raised: #ebe5da;
+  --bg-control: #fffdf9;
+  --bg-control-hover: #e4ddd0;
+  --border: #e6dfd3;
+  --border-control: #d9d0c1;
+  --border-focus: #b8a78f;
+  --text: #2a221b;
+  --text-strong: #14100b;
+  --text-secondary: #4a4036;
+  --text-label: #6b5f52;
+  --text-input: #2a221b;
+  --text-dim: #9a8f80;
+  --accent: #9a4a1f;
+  --on-accent: #fff;
+  --accent-soft: rgb(154 74 31 / 12%);
   --danger-soft: rgb(179 64 47 / 12%);
-  --shadow: rgb(90 76 52 / 22%);
+  --shadow: rgb(60 40 20 / 18%);
+
+  --card: #fffdf9;
+  --bg-hero: #221c16;
+  --on-hero: #fdf9f0;
+  --radius: 12px;
 }
 
 * {
@@ -72,7 +83,7 @@ body.sheet-open {
 body {
   background: var(--bg-app);
   color: var(--text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+  font-family: 'IBM Plex Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;
 }
